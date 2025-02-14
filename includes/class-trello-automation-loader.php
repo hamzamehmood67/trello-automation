@@ -24,11 +24,7 @@ class Trello_Automation_Loader
 		$this->filters = array();
 	}
 
-	function custom_log($message)
-	{
-		$log_file = plugin_dir_path(__FILE__) . 'custom_log1.txt';
-		file_put_contents($log_file, $message . PHP_EOL, FILE_APPEND);
-	}
+
 
 
 	public function add_action1($hook, $component, $callback, $priority = 10, $accepted_args = 1)
@@ -40,7 +36,6 @@ class Trello_Automation_Loader
 
 	public function add_filter1($hook, $component, $callback, $priority = 10, $accepted_args = 1)
 	{
-		$this->custom_log('add_action1 method called with hook: ' . $hook);
 		$this->filters = $this->add($this->filters, $hook, $component, $callback, $priority, $accepted_args);
 	}
 
