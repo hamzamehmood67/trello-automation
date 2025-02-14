@@ -1,4 +1,4 @@
-(function( $ ) {
+(function ($) {
 	'use strict';
 
 	/**
@@ -28,5 +28,17 @@
 	 * Although scripts in the WordPress core, Plugins and Themes may be
 	 * practising this, we should strive to set a better example in our own work.
 	 */
+	console.log('Trello Automation Admin JS loaded!');
+	jQuery(document).ready(function ($) {
+		$('#add_mapping').on('click', function () {
+			console.log('clicked');
+			$('#trello_product_list_mapping').append(`
+				<div class="mapping-row">
+					<input type="text" name="trello_automation_trello_options[trello_product_list_mapping][product][]" placeholder="Product Name">
+					<input type="text" name="trello_automation_trello_options[trello_product_list_mapping][list_id][]" placeholder="Trello List ID">
+				</div>
+			`);
+		});
+	});
 
-})( jQuery );
+})(jQuery);
