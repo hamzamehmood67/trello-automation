@@ -53,7 +53,6 @@ class Trello_Automation_Admin
 		);
 	}
 
-
 	public function display_trello_admin_page()
 	{
 		$active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'trello';
@@ -87,8 +86,6 @@ class Trello_Automation_Admin
 <?php
 	}
 
-
-
 	public function register_plugin_settings()
 	{
 		// Trello Settings
@@ -101,14 +98,14 @@ class Trello_Automation_Admin
 
 		// Slack Settings
 		register_setting('slack_options', 'slack_api_token');
-		register_setting('slack_options', 'slack_channel_id'); // Add Slack channel ID option
+		register_setting('slack_options', 'slack_channel_id');
+		register_setting('slack_options', 'slack_signing_secret'); // Register Slack Signing Secret
 
 		add_settings_section('slack_section', 'Slack API Settings', '__return_false', 'slack');
 		add_settings_field('slack_api_token', 'Slack API Token', array($this, 'slack_api_token_callback'), 'slack', 'slack_section');
-		add_settings_field('slack_channel_id', 'Slack Channel ID', array($this, 'slack_channel_id_callback'), 'slack', 'slack_section'); // Add Slack channel ID field
+		add_settings_field('slack_channel_id', 'Slack Channel ID', array($this, 'slack_channel_id_callback'), 'slack', 'slack_section');
+		add_settings_field('slack_signing_secret', 'Slack Signing Secret', array($this, 'slack_signing_secret_callback'), 'slack', 'slack_section');
 	}
-
-
 
 	public function trello_api_key_callback()
 	{
@@ -134,6 +131,11 @@ class Trello_Automation_Admin
 		echo "<input type='text' name='slack_channel_id' value='$slack_channel_id' class='regular-text' />";
 	}
 
+	public function slack_signing_secret_callback()
+	{
+		$signing_secret = get_option('slack_signing_secret', '');
+		echo "<input type='text' name='slack_signing_secret' value='$signing_secret' class='regular-text' />";
+	}
 
 	/**
 	 * Register the stylesheets for the admin area.
@@ -293,7 +295,7 @@ class Trello_Automation_Admin
 		$slack_message .= "Link to Order: <" . $order_link . "|View Order>\n";
 
 		// Send the consolidated Slack message
-		$this->send_to_slack($slack_message); // Replace with your Slack channel
+		$this->send_to_slack($slack_message, $order_number); // Replace with your Slack channel
 	}
 
 	/**
@@ -302,21 +304,88 @@ class Trello_Automation_Admin
 	 * @param string $channel The Slack channel ID or name (e.g., #general).
 	 * @param string $message The message to send.
 	 */
-	private function send_to_slack($message)
+	// private function send_to_slack($message)
+	// {
+	// 	$slack_channel_id = get_option('slack_channel_id', '');
+	// 	$slack_api_token = get_option('slack_api_token', '');
+	// 	$url = 'https://slack.com/api/chat.postMessage';
+
+
+	// 	$body = [
+	// 		'channel' => $slack_channel_id,
+	// 		'text' => $message,
+	// 	];
+
+	// 	// Send the request to Slack
+	// 	$response = wp_remote_post($url, [
+	// 		'body' => json_encode($body),
+	// 		'headers' => [
+	// 			'Content-Type' => 'application/json; charset=utf-8',
+	// 			'Authorization' => 'Bearer ' . $slack_api_token,
+	// 		],
+	// 	]);
+
+	// 	// Log errors or success
+	// 	if (is_wp_error($response)) {
+	// 		error_log('Slack API Error: ' . $response->get_error_message());
+	// 	} else {
+	// 		$response_body = json_decode(wp_remote_retrieve_body($response), true);
+	// 		if ($response_body['ok']) {
+	// 			error_log('Slack notification sent successfully.');
+	// 		} else {
+	// 			error_log('Slack API Error: ' . $response_body['error']);
+	// 		}
+	// 	}
+	// }
+
+
+
+	private function send_to_slack($message, $order_id)
 	{
 		$slack_channel_id = get_option('slack_channel_id', '');
 		$slack_api_token = get_option('slack_api_token', '');
 		$url = 'https://slack.com/api/chat.postMessage';
 
-
-		$body = [
-			'channel' => $slack_channel_id,
-			'text' => $message,
+		$blocks = [
+			[
+				"type" => "section",
+				"text" => [
+					"type" => "mrkdwn",
+					"text" => $message,
+				],
+				"block_id" => $order_id, // Store the order ID in the block
+			],
+			[
+				"type" => "actions",
+				"elements" => [
+					[
+						"type" => "button",
+						"text" => [
+							"type" => "plain_text",
+							"text" => "Approve",
+						],
+						"style" => "primary",
+						"action_id" => "approve_order", // Match this in your handler
+					],
+					[
+						"type" => "button",
+						"text" => [
+							"type" => "plain_text",
+							"text" => "Reject",
+						],
+						"style" => "danger",
+						"action_id" => "reject_order", // Match this in your handler
+					],
+				],
+			],
 		];
 
-		// Send the request to Slack
 		$response = wp_remote_post($url, [
-			'body' => json_encode($body),
+			'body' => json_encode([
+				'channel' => $slack_channel_id,
+				'text' => $message,
+				'blocks' => $blocks,
+			]),
 			'headers' => [
 				'Content-Type' => 'application/json; charset=utf-8',
 				'Authorization' => 'Bearer ' . $slack_api_token,
