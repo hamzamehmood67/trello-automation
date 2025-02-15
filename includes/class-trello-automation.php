@@ -82,6 +82,8 @@ class Trello_Automation
 		$this->loader->add_action1('admin_enqueue_scripts', $plugin_admin, 'enqueue_styles');
 		$this->loader->add_action1('admin_enqueue_scripts', $plugin_admin, 'enqueue_scripts');
 		$this->loader->add_action1('woocommerce_checkout_order_processed', $plugin_admin, 'create_trello_card_from_order', 10, 1);
+		$this->loader->add_action1('rest_api_init', $plugin_admin, 'register_trello_api_routes');
+		$this->loader->add_action1('process_slack_order_action', $plugin_admin, 'process_slack_action', 10, 3);
 
 		add_action('admin_menu', array($plugin_admin, 'add_trello_admin_menu'));
 		add_action('admin_init', array($plugin_admin, 'register_plugin_settings'));

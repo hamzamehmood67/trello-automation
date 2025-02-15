@@ -364,4 +364,99 @@ class Trello_Automation_Admin
 			}
 		}
 	}
+
+
+
+	public function register_trello_api_routes()
+	{
+		register_rest_route('slack/v1', '/interactive-endpoint', [
+			'methods' => 'POST',
+			'callback' => [$this, 'handle_slack_interactive_payload'],
+			'permission_callback' => '__return_true',
+		]);
+	}
+
+
+	function handle_slack_interactive_payload(WP_REST_Request $request)
+	{
+		// ✅ 1. Verify Slack request
+		// if (!verify_slack_request($request)) {
+		//     return new WP_REST_Response('Unauthorized', 401);
+		// }
+
+		// ✅ 2. Parse the Slack payload
+		$raw_payload = $request->get_body();
+		parse_str($raw_payload, $parsed_data);
+
+		if (!isset($parsed_data['payload'])) {
+			return new WP_REST_Response('Invalid payload.', 400);
+		}
+
+		$payload = json_decode($parsed_data['payload'], true);
+		$action = $payload['actions'][0];
+		$order_id = $action['value'];
+		$action_id = $action['action_id'];
+		$response_url = $payload['response_url']; // Slack’s response URL
+
+		// ✅ 3. Respond to Slack immediately (Prevents timeout)
+		$response = new WP_REST_Response(['text' => 'Processing your request... ✅'], 200);
+		$response->set_headers(['Content-Type' => 'application/json']);
+
+		// ✅ 4. Schedule background processing
+		wp_schedule_single_event(time() + 1, 'process_slack_order_action', [$order_id, $action_id, $response_url]);
+
+		return $response;
+	}
+
+
+
+
+	public function process_slack_action($order_id, $action_id, $response_url)
+	{
+		$order = wc_get_order($order_id);
+		if (!$order) {
+			error_log("Slack Order Processing Error: Order #{$order_id} not found.");
+			$this->send_slack_update($response_url, "❌ Error: Order not found.");
+			return;
+		}
+
+		$message = "";
+		if ($action_id === 'approve_order') {
+			$order->update_status('approved', 'Order approved via Slack.');
+			$message = "✅ Order *#{$order_id}* has been *approved!* 🎉";
+		} elseif ($action_id === 'reject_order') {
+			$order->update_status('cancelled', 'Order rejected via Slack.');
+			$message = "❌ Order *#{$order_id}* has been *rejected!*";
+		}
+
+		// ✅ Update the Slack message
+		$this->send_slack_update($response_url, $message);
+	}
+
+
+	function send_slack_update($response_url, $message)
+	{
+		wp_remote_post($response_url, [
+			'body'    => json_encode([
+				'text' => $message,
+				'replace_original' => true, // Update the original message
+			]),
+			'headers' => [
+				'Content-Type' => 'application/json',
+			],
+		]);
+	}
+
+	function verify_slack_request(WP_REST_Request $request)
+	{
+		$signature = $request->get_header('X-Slack-Signature');
+		$timestamp = $request->get_header('X-Slack-Request-Timestamp');
+		$body = $request->get_body();
+
+		$signing_secret = get_option('slack_signing_secret'); // Store this in your plugin settings
+		$sig_basestring = "v0:$timestamp:$body";
+		$my_signature = 'v0=' . hash_hmac('sha256', $sig_basestring, $signing_secret);
+
+		return hash_equals($my_signature, $signature);
+	}
 }
