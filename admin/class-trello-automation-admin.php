@@ -207,7 +207,6 @@ class Trello_Automation_Admin
 		// Loop through each order item
 		foreach ($order->get_items() as $item_id => $item) {
 			$product_name = $item->get_name(); // Get product name
-			$product_id = $item->get_product_id(); // Get product ID
 
 			// Check if the product has a mapped Trello list
 			if (array_key_exists($product_name, $product_list_mapping)) {
@@ -298,46 +297,6 @@ class Trello_Automation_Admin
 		$this->send_to_slack($slack_message, $order_number); // Replace with your Slack channel
 	}
 
-	/**
-	 * Send order details to Slack using the Web API.
-	 *
-	 * @param string $channel The Slack channel ID or name (e.g., #general).
-	 * @param string $message The message to send.
-	 */
-	// private function send_to_slack($message)
-	// {
-	// 	$slack_channel_id = get_option('slack_channel_id', '');
-	// 	$slack_api_token = get_option('slack_api_token', '');
-	// 	$url = 'https://slack.com/api/chat.postMessage';
-
-
-	// 	$body = [
-	// 		'channel' => $slack_channel_id,
-	// 		'text' => $message,
-	// 	];
-
-	// 	// Send the request to Slack
-	// 	$response = wp_remote_post($url, [
-	// 		'body' => json_encode($body),
-	// 		'headers' => [
-	// 			'Content-Type' => 'application/json; charset=utf-8',
-	// 			'Authorization' => 'Bearer ' . $slack_api_token,
-	// 		],
-	// 	]);
-
-	// 	// Log errors or success
-	// 	if (is_wp_error($response)) {
-	// 		error_log('Slack API Error: ' . $response->get_error_message());
-	// 	} else {
-	// 		$response_body = json_decode(wp_remote_retrieve_body($response), true);
-	// 		if ($response_body['ok']) {
-	// 			error_log('Slack notification sent successfully.');
-	// 		} else {
-	// 			error_log('Slack API Error: ' . $response_body['error']);
-	// 		}
-	// 	}
-	// }
-
 
 
 	private function send_to_slack($message, $order_id)
@@ -353,7 +312,6 @@ class Trello_Automation_Admin
 					"type" => "mrkdwn",
 					"text" => $message,
 				],
-				"block_id" => $order_id, // Store the order ID in the block
 			],
 			[
 				"type" => "actions",
@@ -365,7 +323,8 @@ class Trello_Automation_Admin
 							"text" => "Approve",
 						],
 						"style" => "primary",
-						"action_id" => "approve_order", // Match this in your handler
+						"action_id" => "approve_order",
+						"value" => $order_id, // Store the order ID here
 					],
 					[
 						"type" => "button",
@@ -374,7 +333,8 @@ class Trello_Automation_Admin
 							"text" => "Reject",
 						],
 						"style" => "danger",
-						"action_id" => "reject_order", // Match this in your handler
+						"action_id" => "reject_order",
+						"value" => $order_id, // Store the order ID here
 					],
 				],
 			],
