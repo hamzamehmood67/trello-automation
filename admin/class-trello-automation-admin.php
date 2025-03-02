@@ -170,14 +170,64 @@ class Trello_Automation_Admin
 
 	public function create_trello_card_from_order($order_id)
 	{
+		$order = wc_get_order($order_id);
+		if (!$order) {
+			error_log("Order #{$order_id} not found.");
+			return;
+		}
 
-		$api_key = get_option('trello_api_key', '');
-		$token = get_option('trello_token', '');
+		// Prepare Slack message
+		$slack_message = "";
 
-		$order_link = admin_url('post.php?post=' . $order_id . '&action=edit');
+		// Loop through each order item
+		foreach ($order->get_items() as $item_id => $item) {
+			$product_name = $item->get_name();
 
-		// Define product-to-list mapping
-		$product_list_mapping = [
+			// Check if the product has a mapped Trello list
+			if ($this->is_product_mapped_to_trello_list($product_name)) {
+				$list_id = $this->get_trello_list_id_for_product($product_name);
+
+				// Create Trello card
+				$this->create_trello_card($order, $item, $list_id);
+
+				// Add item details to Slack message
+				$slack_message .= $this->prepare_slack_message_for_item($order, $item);
+			} else {
+				error_log('No Trello list mapping found for product: ' . $product_name);
+			}
+		}
+
+		// Add order details to Slack message
+		$slack_message .= $this->prepare_slack_message_for_order($order);
+
+		// Send the consolidated Slack message
+		$this->send_to_slack($slack_message, $order->get_order_number());
+	}
+
+	/**
+	 * Check if a product is mapped to a Trello list.
+	 */
+	private function is_product_mapped_to_trello_list($product_name)
+	{
+		$product_list_mapping = $this->get_product_list_mapping();
+		return array_key_exists($product_name, $product_list_mapping);
+	}
+
+	/**
+	 * Get the Trello list ID for a product.
+	 */
+	private function get_trello_list_id_for_product($product_name)
+	{
+		$product_list_mapping = $this->get_product_list_mapping();
+		return $product_list_mapping[$product_name];
+	}
+
+	/**
+	 * Get the product-to-Trello list mapping.
+	 */
+	private function get_product_list_mapping()
+	{
+		return [
 			'Dog Daycare' => '649303238df9c13a72d46e77',
 			'Dog Bath' => '65d4b5bb060254cea7e7171a',
 			'Dog Boarding' => '64bef4229123ac1610f21482',
@@ -187,117 +237,149 @@ class Trello_Automation_Admin
 			'Meet and Greet for Boarding and/or Daycare Services' => '6601b365b9d5f576f11109d4',
 			'Meet & Greet for Dog Walking, Cat Care & Home Visit Services' => '6601b365b9d5f576f11109d4',
 		];
-		// Define meta keys to exclude
-		$excluded_meta_keys = [
+	}
+
+	/**
+	 * Create a Trello card for an order item.
+	 */
+	private function create_trello_card($order, $item, $list_id)
+	{
+		$api_key = get_option('trello_api_key', '');
+		$token = get_option('trello_token', '');
+
+		$card_name = $this->prepare_trello_card_name($order, $item);
+		$card_description = $this->prepare_trello_card_description($order, $item);
+
+		$url = "https://api.trello.com/1/cards";
+		$body = [
+			'key' => $api_key,
+			'token' => $token,
+			'idList' => $list_id,
+			'pos' => 'top',
+			'name' => $card_name,
+			'desc' => $card_description,
+		];
+
+		$response = wp_remote_post($url, [
+			'body' => $body,
+		]);
+
+		if (is_wp_error($response)) {
+			error_log('Trello API Error for product ' . $item->get_name() . ': ' . $response->get_error_message());
+		} else {
+			error_log('Trello card created for product ' . $item->get_name() . ' in order: ' . $order->get_id());
+		}
+	}
+
+	/**
+	 * Prepare the Trello card name.
+	 */
+	private function prepare_trello_card_name($order, $item)
+	{
+		$order_number = $order->get_order_number();
+		$customer_name = $order->get_formatted_billing_full_name();
+		$order_date = $order->get_date_created()->date('F j, Y g:i a');
+		$product_name = $item->get_name();
+
+		return sprintf(
+			'Order %s - %s placed by %s on %s',
+			$order_number,
+			$product_name,
+			$customer_name,
+			$order_date
+		);
+	}
+
+	/**
+	 * Prepare the Trello card description.
+	 */
+	private function prepare_trello_card_description($order, $item)
+	{
+		$customer_name = $order->get_formatted_billing_full_name();
+		$product_name = $item->get_name();
+		$quantity = $item->get_quantity();
+		$total = $order->get_total() . ' ' . $order->get_currency();
+		$payment_method = $order->get_payment_method_title();
+
+		$description = 'Order Details:' . PHP_EOL;
+		$description .= 'Customer: ' . $customer_name . PHP_EOL;
+		$description .= 'Product: ' . $product_name . PHP_EOL;
+		$description .= 'Quantity: ' . $quantity . PHP_EOL;
+		$description .= 'Total: ' . $total . PHP_EOL;
+		$description .= 'Payment Method: ' . $payment_method . PHP_EOL;
+
+		// Add additional meta data (if any)
+		$item_meta_data = $item->get_meta_data();
+		if (!empty($item_meta_data)) {
+			$description .= 'Additional Meta Data:' . PHP_EOL;
+			foreach ($item_meta_data as $meta) {
+				if (in_array($meta->key, $this->get_excluded_meta_keys())) {
+					continue;
+				}
+				$description .= ' - ' . $meta->key . ': ' . $meta->value . PHP_EOL;
+			}
+		}
+
+		return $description;
+	}
+
+	/**
+	 * Get the list of excluded meta keys.
+	 */
+	private function get_excluded_meta_keys()
+	{
+		return [
 			'_advanced_woo_discount_item_total_discount',
 			'_wdr_discounts',
 			'_ywpar_total_points',
 			'_wsf_submit_id',
 			'_wsf_form_id',
-			'Total Order Amount:'
+			'Total Order Amount:',
 		];
+	}
 
-		// Get order details
-		$order = wc_get_order($order_id);
-		if (!$order) return;
+	/**
+	 * Prepare the Slack message for an order item.
+	 */
+	private function prepare_slack_message_for_item($order, $item)
+	{
+		$product_name = $item->get_name();
+		$order_date = $order->get_date_created()->date('F j, Y g:i a');
+		$customer_name = $order->get_formatted_billing_full_name();
+		$item_meta_data = $item->get_meta_data();
 
-		// Prepare Slack message
-		$slack_message = "";
+		$message = "Pet Care Service: " . $product_name . "\n";
+		$message .= "Order Dates: " . $order_date . "\n";
+		$message .= "Client Name: " . $customer_name . "\n";
+		$message .= "Client Profile: https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name) . "/\n\n";
 
-		// Loop through each order item
-		foreach ($order->get_items() as $item_id => $item) {
-			$product_name = $item->get_name(); // Get product name
-
-			// Check if the product has a mapped Trello list
-			if (array_key_exists($product_name, $product_list_mapping)) {
-				$list_id = $product_list_mapping[$product_name]; // Get the Trello list ID
-
-				// Prepare card name
-				$order_number = $order->get_order_number(); // Order number
-				$customer_name = $order->get_formatted_billing_full_name(); // Customer name
-				$order_date = $order->get_date_created()->date('F j, Y g:i a'); // Order date
-
-				$card_name = sprintf(
-					'Order %s - %s placed by %s on %s',
-					$order_number,
-					$product_name,
-					$customer_name,
-					$order_date
-				);
-
-				// Prepare card description
-				$card_description = 'Order Details:' . PHP_EOL;
-				$card_description .= 'Customer: ' . $customer_name . PHP_EOL;
-				$card_description .= 'Product: ' . $product_name . PHP_EOL;
-				$card_description .= 'Quantity: ' . $item->get_quantity() . PHP_EOL;
-				$card_description .= 'Total: ' . $order->get_total() . ' ' . $order->get_currency() . PHP_EOL;
-				$card_description .= 'Payment Method: ' . $order->get_payment_method_title() . PHP_EOL;
-				// Add additional meta data (if any)
-				$item_meta_data = $item->get_meta_data();
-				if (!empty($item_meta_data)) {
-					$card_description .= 'Additional Meta Data:' . PHP_EOL;
-					foreach ($item_meta_data as $meta) {
-						if (in_array($meta->key, $excluded_meta_keys)) {
-							continue;
-						}
-						$card_description .= ' - ' . $meta->key . ': ' . $meta->value . PHP_EOL;
-					}
+		if (!empty($item_meta_data)) {
+			$message .= "*Service Detail*:\n";
+			foreach ($item_meta_data as $meta) {
+				if (in_array($meta->key, $this->get_excluded_meta_keys())) {
+					continue;
 				}
-				// Trello API request
-				$url = "https://api.trello.com/1/cards";
-				$body = [
-					'key' => $api_key, // Replace with your Trello API key
-					'token' => $token, // Replace with your Trello token
-					'idList' => $list_id,
-					'pos' => 'top',
-					'name' => $card_name,
-					'desc' => $card_description,
-				];
-
-				// Send request to Trello
-				$response = wp_remote_post($url, [
-					'body' => $body,
-				]);
-
-				// Log result
-				if (is_wp_error($response)) {
-					error_log('Trello API Error for product ' . $product_name . ': ' . $response->get_error_message());
-				} else {
-					error_log('Trello card created for product ' . $product_name . ' in order: ' . $order_id);
-				}
-
-				// Add item details to Slack message
-				$slack_message .= "Pet Care Service: " . $product_name . "\n";
-				$slack_message .= "Order Dates: " . $order_date . "\n";
-				$slack_message .= "Client Name: " . $customer_name . "\n";
-				$slack_message .= "Client Profile: https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name) . "/\n\n";
-
-				// Add additional meta data (if any)
-				if (!empty($item_meta_data)) {
-					$slack_message .= "*Service Detail*:\n";
-					foreach ($item_meta_data as $meta) {
-						if (in_array($meta->key, $excluded_meta_keys)) {
-							continue;
-						}
-						$slack_message .= ' *-> ' . $meta->key . '* ' . "\n" . $meta->value . "\n";
-					}
-				}
-				$slack_message .= "\n"; // Add a newline between services
-			} else {
-				error_log('No Trello list mapping found for product: ' . $product_name);
+				$message .= ' *-> ' . $meta->key . '* ' . "\n" . $meta->value . "\n";
 			}
 		}
 
-		// Add order ID, status, and link at the bottom
-		$slack_message .= "Order ID: " . $order->get_order_number() . "\n";
-		$slack_message .= "Order Status: " . $order->get_status() . "\n";
-		$slack_message .= "Link to Order: <" . $order_link . "|View Order>\n";
-
-		// Send the consolidated Slack message
-		$this->send_to_slack($slack_message, $order_number); // Replace with your Slack channel
+		$message .= "\n"; // Add a newline between services
+		return $message;
 	}
 
+	/**
+	 * Prepare the Slack message for the order.
+	 */
+	private function prepare_slack_message_for_order($order)
+	{
+		$order_link = admin_url('post.php?post=' . $order->get_id() . '&action=edit');
 
+		$message = "Order ID: " . $order->get_order_number() . "\n";
+		$message .= "Order Status: " . $order->get_status() . "\n";
+		$message .= "Link to Order: <" . $order_link . "|View Order>\n";
+
+		return $message;
+	}
 
 	private function send_to_slack($message, $order_id)
 	{
@@ -421,14 +503,18 @@ class Trello_Automation_Admin
 		}
 
 		$message = "";
+		foreach ($order->get_items() as $item_id => $item) {
+			// Add item details to Slack message
+			$message .= $this->prepare_slack_message_for_item($order, $item);
+		}
+		$message .= $this->prepare_slack_message_for_order($order);
 		if ($action_id === 'approve_order') {
 			$order->update_status('approved', 'Order approved via Slack.');
-			$message = "✅ Order *#{$order_id}* has been *approved!* 🎉";
+			$message .= "✅ Order *#{$order_id}* has been *approved!* 🎉" . "\n";
 		} elseif ($action_id === 'reject_order') {
 			$order->update_status('cancelled', 'Order rejected via Slack.');
-			$message = "❌ Order *#{$order_id}* has been *rejected!*";
+			$message .= "❌ Order *#{$order_id}* has been *rejected!*" . "\n";
 		}
-
 		// ✅ Update the Slack message
 		$this->send_slack_update($response_url, $message);
 	}
