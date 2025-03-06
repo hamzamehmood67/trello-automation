@@ -166,9 +166,57 @@ class Trello_Automation_Admin
 		}
 	}
 
-
-
+	//Function to send slack notification of new Order
 	public function create_trello_card_from_order($order_id)
+	{
+		$order = wc_get_order($order_id);
+		if (!$order) {
+			error_log("Order #{$order_id} not found.");
+			return;
+		}
+
+		// Prepare and send Slack message
+		$slack_message = "";
+		foreach ($order->get_items() as $item_id => $item) {
+			$slack_message .= $this->prepare_slack_message_for_item($order, $item);
+		}
+		$slack_message .= $this->prepare_slack_message_for_order($order);
+
+		// Send the consolidated Slack message
+		$this->send_to_slack($slack_message, $order->get_order_number());
+	}
+
+	public function create_trello_card_on_approval($order_id, $old_status, $new_status)
+	{
+		// Check if the new status is "approved"
+		if ($new_status !== 'approved') {
+			return;
+		}
+
+		$order = wc_get_order($order_id);
+		if (!$order) {
+			error_log("Order #{$order_id} not found.");
+			return;
+		}
+
+		// Loop through each order item and create Trello cards
+		foreach ($order->get_items() as $item_id => $item) {
+			$product_name = $item->get_name();
+
+			// Check if the product has a mapped Trello list
+			if ($this->is_product_mapped_to_trello_list($product_name)) {
+				$list_id = $this->get_trello_list_id_for_product($product_name);
+
+				// Create Trello card
+				$this->create_trello_card($order, $item, $list_id);
+			} else {
+				error_log('No Trello list mapping found for product: ' . $product_name);
+			}
+		}
+	}
+
+
+	public function create_trello_card_from_order_old($order_id)
 	{
 		$order = wc_get_order($order_id);
 		if (!$order) {
@@ -461,12 +509,7 @@ class Trello_Automation_Admin
 
 	function handle_slack_interactive_payload(WP_REST_Request $request)
 	{
-		// ✅ 1. Verify Slack request
-		// if (!verify_slack_request($request)) {
-		//     return new WP_REST_Response('Unauthorized', 401);
-		// }
-
-		// ✅ 2. Parse the Slack payload
+		
 		$raw_payload = $request->get_body();
 		parse_str($raw_payload, $parsed_data);
 
