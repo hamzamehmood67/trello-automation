@@ -174,7 +174,7 @@ class Trello_Automation_Admin
 			error_log("Order #{$order_id} not found.");
 			return;
 		}
-		$this->tempTrelloNotification($order);
+		$this->tempTrelloNotification($order, $order_id);
 		// Prepare and send Slack message
 		$slack_message = "";
 		foreach ($order->get_items() as $item_id => $item) {
@@ -185,54 +185,90 @@ class Trello_Automation_Admin
 		// Send the consolidated Slack message
 		$this->send_to_slack($slack_message, $order->get_order_number());
 	}
-
-
-	public function tempTrelloNotification($order)
+	private function write_message_to_file($message, $order_id)
 	{
+		// Define the file path
+		$file_path = plugin_dir_path(__FILE__) . 'logs/order_' . $order_id . '_message.txt';
 
-		// Extract WS Form meta keys
-		$wsf_submit_id = $order->get_meta('_wsf_submit_id');
-		$wsf_form_id = $order->get_meta('_wsf_form_id');
-
-		// Check if the meta keys exist
-		if (empty($wsf_submit_id) || empty($wsf_form_id)) {
-			error_log('WS Form submission ID or form ID is missing for order #' . $order_id);
-			return;
+		// Create the logs directory if it doesn't exist
+		$logs_dir = plugin_dir_path(__FILE__) . 'logs';
+		if (!file_exists($logs_dir)) {
+			if (!mkdir($logs_dir, 0755, true)) {
+				error_log('Failed to create logs directory: ' . $logs_dir);
+				return false;
+			}
 		}
 
-		// Fetch WS Form submission object
-		$submit_object = wsf_submit_get_object($wsf_submit_id);
-		if (!$submit_object) {
-			error_log('Failed to fetch WS Form submission object for submit ID ' . $wsf_submit_id);
-			return;
+		// Write the message to the file
+		if (file_put_contents($file_path, $message) === false) {
+			error_log('Failed to write message to file: ' . $file_path);
+			return false;
 		}
 
-		// Fetch WS Form form object
-		$form_object = wsf_form_get_object($wsf_form_id);
-		if (!$form_object) {
-			error_log('Failed to fetch WS Form form object for form ID ' . $wsf_form_id);
-			return;
+		return true;
+	}
+
+	public function tempTrelloNotification($order, $order_id)
+	{
+		$message = "";
+		foreach ($order->get_items() as $item_id => $item) {
+			$item_meta_data = $item->get_meta_data();
+
+			if (!empty($item_meta_data)) {
+				foreach ($item_meta_data as $meta) {
+					if ($meta->key == '_wsf_submit_id') {
+						$wsf_submit_id = $meta->value;
+					}
+
+					if ($meta->key == '_wsf_form_id') {
+						$wsf_form_id = $meta->value;
+					}
+				}
+
+				// Check if the meta keys exist
+				if (empty($wsf_submit_id) || empty($wsf_form_id)) {
+					error_log('WS Form submission ID or form ID is missing for order #' . $order_id);
+					return;
+				}
+
+				// Fetch WS Form submission object
+				$submit_object = wsf_submit_get_object($wsf_submit_id);
+				if (!$submit_object) {
+					error_log('Failed to fetch WS Form submission object for submit ID ' . $wsf_submit_id);
+					return;
+				}
+
+				// Fetch WS Form form object
+				$form_object = wsf_form_get_object($wsf_form_id);
+				if (!$form_object) {
+					error_log('Failed to fetch WS Form form object for form ID ' . $wsf_form_id);
+					return;
+				}
+
+				$class_name = 'test';
+
+				// Get the field value from the submission data
+				$field_value = wsf_submit_get_value_by_field_class($form_object, $submit_object, $class_name, 'N/A', true);
+
+				if (empty($field_value)) {
+					error_log('Field value not found for class ' . $class_name);
+					return;
+				}
+
+				$message .= "Pet Name: " . $field_value . "\n";
+			}
 		}
 
-		// Retrieve specific field value using field ID
-		$field_id = 'your_field_id_here'; // Replace with the actual field ID
-		$field_object = wsf_field_get_object($form_object, $field_id);
-		if (!$field_object) {
-			error_log('Field object not found for field ID ' . $field_id);
-			return;
+		// Log the message for debugging
+		error_log($message);
+
+		// Write the message to a file
+		if (!$this->write_message_to_file($message, $order_id)) {
+			error_log('Failed to write message to file for order #' . $order_id);
 		}
 
-		// Get the field value from the submission data
-		$field_value = $this->get_ws_form_field_value($submit_object, $field_object);
-
-		if (empty($field_value)) {
-			error_log('Field value not found for field ID ' . $field_id . ' in order #' . $order_id);
-			return;
-		}
-
-		// Prepare and send notification (e.g., Slack or Trello)
-		$message = "Order #{$order_id} has a WS Form submission with field value: {$field_value}";
-		$this->send_to_slack($message, $order_id); // Or use Trello API
+		// Uncomment to send Slack notification
+		// $this->send_to_slack($message, $order_id);
 	}
 
 	/**
