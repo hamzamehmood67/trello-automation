@@ -167,14 +167,14 @@ class Trello_Automation_Admin
 	}
 
 	//Function to send slack notification of new Order
-	public function create_trello_card_from_order($order_id)
+	public function create_slack_notification($order_id)
 	{
 		$order = wc_get_order($order_id);
 		if (!$order) {
 			error_log("Order #{$order_id} not found.");
 			return;
 		}
-
+		$this->tempTrelloNotification($order);
 		// Prepare and send Slack message
 		$slack_message = "";
 		foreach ($order->get_items() as $item_id => $item) {
@@ -184,6 +184,81 @@ class Trello_Automation_Admin
 
 		// Send the consolidated Slack message
 		$this->send_to_slack($slack_message, $order->get_order_number());
+	}
+
+
+	public function tempTrelloNotification($order)
+	{
+
+		// Extract WS Form meta keys
+		$wsf_submit_id = $order->get_meta('_wsf_submit_id');
+		$wsf_form_id = $order->get_meta('_wsf_form_id');
+
+		// Check if the meta keys exist
+		if (empty($wsf_submit_id) || empty($wsf_form_id)) {
+			error_log('WS Form submission ID or form ID is missing for order #' . $order_id);
+			return;
+		}
+
+		// Fetch WS Form submission object
+		$submit_object = wsf_submit_get_object($wsf_submit_id);
+		if (!$submit_object) {
+			error_log('Failed to fetch WS Form submission object for submit ID ' . $wsf_submit_id);
+			return;
+		}
+
+		// Fetch WS Form form object
+		$form_object = wsf_form_get_object($wsf_form_id);
+		if (!$form_object) {
+			error_log('Failed to fetch WS Form form object for form ID ' . $wsf_form_id);
+			return;
+		}
+
+		// Retrieve specific field value using field ID
+		$field_id = 'your_field_id_here'; // Replace with the actual field ID
+		$field_object = wsf_field_get_object($form_object, $field_id);
+		if (!$field_object) {
+			error_log('Field object not found for field ID ' . $field_id);
+			return;
+		}
+
+		// Get the field value from the submission data
+		$field_value = $this->get_ws_form_field_value($submit_object, $field_object);
+
+		if (empty($field_value)) {
+			error_log('Field value not found for field ID ' . $field_id . ' in order #' . $order_id);
+			return;
+		}
+
+		// Prepare and send notification (e.g., Slack or Trello)
+		$message = "Order #{$order_id} has a WS Form submission with field value: {$field_value}";
+		$this->send_to_slack($message, $order_id); // Or use Trello API
+	}
+
+	/**
+	 * Retrieve a specific field value from WS Form submission data using the field object.
+	 */
+	private function get_ws_form_field_value($submit_object, $field_object)
+	{
+		// Check if the submission object has data
+		if (empty($submit_object->data)) {
+			return null;
+		}
+
+		// Decode the submission data
+		$data = json_decode($submit_object->data, true);
+		if (empty($data)) {
+			return null;
+		}
+
+		// Find the field value by field ID
+		foreach ($data as $field) {
+			if (isset($field['id']) && $field['id'] == $field_object->id) {
+				return $field['value'];
+			}
+		}
+
+		return null;
 	}
 
 	public function create_trello_card_on_approval($order_id, $old_status, $new_status)
@@ -383,6 +458,7 @@ class Trello_Automation_Admin
 			'_wsf_submit_id',
 			'_wsf_form_id',
 			'Total Order Amount:',
+			'Additional Charge for Extra Day of Dog Daycare:'
 		];
 	}
 
@@ -407,7 +483,7 @@ class Trello_Automation_Admin
 				if (in_array($meta->key, $this->get_excluded_meta_keys())) {
 					continue;
 				}
-				$message .= ' *-> ' . $meta->key . '* ' . "\n" . $meta->value . "\n";
+				$message .= ' * 🔴' . $meta->key . '* ' . "\n  ✅ " . $meta->value . "\n\n";
 			}
 		}
 
@@ -509,7 +585,7 @@ class Trello_Automation_Admin
 
 	function handle_slack_interactive_payload(WP_REST_Request $request)
 	{
-		
+
 		$raw_payload = $request->get_body();
 		parse_str($raw_payload, $parsed_data);
 
