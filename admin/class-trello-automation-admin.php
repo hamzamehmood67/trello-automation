@@ -208,8 +208,9 @@ class Trello_Automation_Admin
 		return true;
 	}
 
-	public function tempTrelloNotification($order, $order_id)
+	public function tempTrelloNotification($order_id)
 	{
+		$order = wc_get_order($order_id);
 		$message = "";
 		foreach ($order->get_items() as $item_id => $item) {
 			$item_meta_data = $item->get_meta_data();
@@ -254,11 +255,12 @@ class Trello_Automation_Admin
 					error_log('Field value not found for class ' . $class_name);
 					return;
 				}
-
-				$message .= "Pet Name: " . $field_value . "\n";
+				$field_value = (string) $field_value;
+				$message .= "Pet Name: " . $field_value;
 			}
 		}
-
+		$message = trim($message);
+		$message = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 		// Log the message for debugging
 		error_log($message);
 
@@ -268,33 +270,7 @@ class Trello_Automation_Admin
 		}
 
 		// Uncomment to send Slack notification
-		// $this->send_to_slack($message, $order_id);
-	}
-
-	/**
-	 * Retrieve a specific field value from WS Form submission data using the field object.
-	 */
-	private function get_ws_form_field_value($submit_object, $field_object)
-	{
-		// Check if the submission object has data
-		if (empty($submit_object->data)) {
-			return null;
-		}
-
-		// Decode the submission data
-		$data = json_decode($submit_object->data, true);
-		if (empty($data)) {
-			return null;
-		}
-
-		// Find the field value by field ID
-		foreach ($data as $field) {
-			if (isset($field['id']) && $field['id'] == $field_object->id) {
-				return $field['value'];
-			}
-		}
-
-		return null;
+		$this->send_to_slack($message, $order_id);
 	}
 
 	public function create_trello_card_on_approval($order_id, $old_status, $new_status)
@@ -547,7 +523,7 @@ class Trello_Automation_Admin
 		$slack_api_token = get_option('slack_api_token', '');
 		$url = 'https://slack.com/api/chat.postMessage';
 
-		$blocks = [
+		$blocks = json_encode([
 			[
 				"type" => "section",
 				"text" => [
@@ -580,7 +556,7 @@ class Trello_Automation_Admin
 					],
 				],
 			],
-		];
+		]);
 
 		$response = wp_remote_post($url, [
 			'body' => json_encode([
@@ -602,7 +578,7 @@ class Trello_Automation_Admin
 			if ($response_body['ok']) {
 				error_log('Slack notification sent successfully.');
 			} else {
-				error_log('Slack API Error: ' . $response_body['error']);
+				error_log('Slack API Errorr: ' . $response_body['error']);
 			}
 		}
 	}
