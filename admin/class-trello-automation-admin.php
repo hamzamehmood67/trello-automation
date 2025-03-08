@@ -174,7 +174,6 @@ class Trello_Automation_Admin
 			error_log("Order #{$order_id} not found.");
 			return;
 		}
-		$this->tempTrelloNotification($order, $order_id);
 		// Prepare and send Slack message
 		$slack_message = "";
 		foreach ($order->get_items() as $item_id => $item) {
@@ -182,6 +181,7 @@ class Trello_Automation_Admin
 		}
 		$slack_message .= $this->prepare_slack_message_for_order($order);
 
+		$slack_message .= getPetNames($order_id);
 		// Send the consolidated Slack message
 		$this->send_to_slack($slack_message, $order->get_order_number());
 	}
@@ -208,10 +208,10 @@ class Trello_Automation_Admin
 		return true;
 	}
 
-	public function tempTrelloNotification($order_id)
+	public function getPetNames($order_id)
 	{
 		$order = wc_get_order($order_id);
-		$message = "";
+		$message = "Test Message";
 		foreach ($order->get_items() as $item_id => $item) {
 			$item_meta_data = $item->get_meta_data();
 
@@ -259,8 +259,7 @@ class Trello_Automation_Admin
 				$message .= "Pet Name: " . $field_value;
 			}
 		}
-		$message = trim($message);
-		$message = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
 		// Log the message for debugging
 		error_log($message);
 
@@ -269,8 +268,7 @@ class Trello_Automation_Admin
 			error_log('Failed to write message to file for order #' . $order_id);
 		}
 
-		// Uncomment to send Slack notification
-		$this->send_to_slack($message, $order_id);
+		return $message;
 	}
 
 	public function create_trello_card_on_approval($order_id, $old_status, $new_status)
