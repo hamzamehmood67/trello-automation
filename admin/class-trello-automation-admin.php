@@ -181,7 +181,6 @@ class Trello_Automation_Admin
 		}
 		$slack_message .= $this->prepare_slack_message_for_order($order);
 
-		$slack_message .= getPetNames($order_id);
 		// Send the consolidated Slack message
 		$this->send_to_slack($slack_message, $order->get_order_number());
 	}
@@ -208,10 +207,9 @@ class Trello_Automation_Admin
 		return true;
 	}
 
-	public function getPetNames($order_id)
+	public function getPetNames($order)
 	{
-		$order = wc_get_order($order_id);
-		$message = "Test Message";
+		$message = "";
 		foreach ($order->get_items() as $item_id => $item) {
 			$item_meta_data = $item->get_meta_data();
 
@@ -246,7 +244,7 @@ class Trello_Automation_Admin
 					return;
 				}
 
-				$class_name = 'test';
+				$class_name = 'pet_name';
 
 				// Get the field value from the submission data
 				$field_value = wsf_submit_get_value_by_field_class($form_object, $submit_object, $class_name, 'N/A', true);
@@ -256,17 +254,11 @@ class Trello_Automation_Admin
 					return;
 				}
 				$field_value = (string) $field_value;
-				$message .= "Pet Name: " . $field_value;
+				$message .= "*Pet Name: *" . $field_value;
 			}
 		}
 
-		// Log the message for debugging
-		error_log($message);
-
-		// Write the message to a file
-		if (!$this->write_message_to_file($message, $order_id)) {
-			error_log('Failed to write message to file for order #' . $order_id);
-		}
+		
 
 		return $message;
 	}
@@ -487,6 +479,8 @@ class Trello_Automation_Admin
 		$message .= "Client Name: " . $customer_name . "\n";
 		$message .= "Client Profile: https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name) . "/\n\n";
 
+		$message .= $this->getPetNames($order);
+
 		if (!empty($item_meta_data)) {
 			$message .= "*Service Detail*:\n";
 			foreach ($item_meta_data as $meta) {
@@ -639,10 +633,10 @@ class Trello_Automation_Admin
 		$message .= $this->prepare_slack_message_for_order($order);
 		if ($action_id === 'approve_order') {
 			$order->update_status('approved', 'Order approved via Slack.');
-			$message .= "✅ Order *#{$order_id}* has been *approved!* 🎉" . "\n";
+			$message .= "✅✅✅✅ Order *#{$order_id}* has been *approved!* 🎉🎉🎉🎉" . "\n";
 		} elseif ($action_id === 'reject_order') {
-			$order->update_status('cancelled', 'Order rejected via Slack.');
-			$message .= "❌ Order *#{$order_id}* has been *rejected!*" . "\n";
+			$order->update_status('rejected', 'Order rejected via Slack.');
+			$message .= "❌❌❌❌ Order *#{$order_id}* has been *rejected!*" . "\n";
 		}
 		// ✅ Update the Slack message
 		$this->send_slack_update($response_url, $message);
