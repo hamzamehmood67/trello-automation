@@ -258,7 +258,7 @@ class Trello_Automation_Admin
 			}
 		}
 
-		
+
 
 		return $message;
 	}
@@ -630,12 +630,15 @@ class Trello_Automation_Admin
 			// Add item details to Slack message
 			$message .= $this->prepare_slack_message_for_item($order, $item);
 		}
-		$message .= $this->prepare_slack_message_for_order($order);
+
+
 		if ($action_id === 'approve_order') {
 			$order->update_status('approved', 'Order approved via Slack.');
+			$message .= $this->prepare_slack_message_for_order($order);
 			$message .= "✅✅✅✅ Order *#{$order_id}* has been *approved!* 🎉🎉🎉🎉" . "\n";
 		} elseif ($action_id === 'reject_order') {
 			$order->update_status('rejected', 'Order rejected via Slack.');
+			$message .= $this->prepare_slack_message_for_order($order);
 			$message .= "❌❌❌❌ Order *#{$order_id}* has been *rejected!*" . "\n";
 		}
 		// ✅ Update the Slack message
