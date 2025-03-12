@@ -254,11 +254,11 @@ class Trello_Automation_Admin
 					return;
 				}
 				$field_value = (string) $field_value;
-				$message .= "*Pet Name: *" . $field_value;
+				$message .= "Pet Name: " . $field_value;
 			}
 		}
 
-
+		$message .= "\n";
 
 		return $message;
 	}
@@ -584,12 +584,17 @@ class Trello_Automation_Admin
 			'callback' => [$this, 'handle_slack_interactive_payload'],
 			'permission_callback' => '__return_true',
 		]);
+
+		register_rest_route('slack/v1', '/process-order-action', [
+			'methods' => 'POST',
+			'callback' => [$this, 'process_slack_action'],
+			'permission_callback' => '__return_true',
+		]);
 	}
 
 
 	function handle_slack_interactive_payload(WP_REST_Request $request)
 	{
-
 		$raw_payload = $request->get_body();
 		parse_str($raw_payload, $parsed_data);
 
@@ -601,46 +606,73 @@ class Trello_Automation_Admin
 		$action = $payload['actions'][0];
 		$order_id = $action['value'];
 		$action_id = $action['action_id'];
-		$response_url = $payload['response_url']; // Slack’s response URL
+		$response_url = $payload['response_url'];
 
-		// ✅ 3. Respond to Slack immediately (Prevents timeout)
+		// ✅ Respond to Slack immediately
 		$response = new WP_REST_Response(['text' => 'Processing your request... ✅'], 200);
 		$response->set_headers(['Content-Type' => 'application/json']);
 
-		// ✅ 4. Schedule background processing
-		wp_schedule_single_event(time() + 1, 'process_slack_order_action', [$order_id, $action_id, $response_url]);
+		// ✅ Trigger background processing via HTTP request
+		$this->trigger_background_processing($order_id, $action_id, $response_url);
 
 		return $response;
 	}
 
-
-
-
-	public function process_slack_action($order_id, $action_id, $response_url)
+	function trigger_background_processing($order_id, $action_id, $response_url)
 	{
+		$url = rest_url('slack/v1/process-order-action');
+		$args = [
+			'body' => [
+				'order_id' => $order_id,
+				'action_id' => $action_id,
+				'response_url' => $response_url,
+			],
+			'timeout' => 0.01, // Non-blocking request
+			'blocking'  => false,
+		];
+
+		wp_remote_post($url, $args);
+	}
+
+
+
+	function process_slack_action(WP_REST_Request $request)
+	{
+		$order_id = $request->get_param('order_id');
+		$action_id = $request->get_param('action_id');
+		$response_url = $request->get_param('response_url');
+
 		$order = wc_get_order($order_id);
 		if (!$order) {
 			error_log("Slack Order Processing Error: Order #{$order_id} not found.");
 			$this->send_slack_update($response_url, "❌ Error: Order not found.");
 			return;
 		}
+		$order_status = $order->get_status();
+
 
 		$message = "";
 		foreach ($order->get_items() as $item_id => $item) {
-			// Add item details to Slack message
 			$message .= $this->prepare_slack_message_for_item($order, $item);
 		}
 
+		if ($order_status == "pending" || $order_status == "approval-waiting") {
 
-		if ($action_id === 'approve_order') {
-			$order->update_status('approved', 'Order approved via Slack.');
+			if ($action_id === 'approve_order') {
+				$order->update_status('approved', 'Order approved via Slack.');
+				$message .= $this->prepare_slack_message_for_order($order);
+				$message .= "✅✅✅✅ Order *#{$order_id}* has been *approved!* 🎉🎉🎉🎉" . "\n";
+			} elseif ($action_id === 'reject_order') {
+				$order->update_status('rejected', 'Order rejected via Slack.');
+				$message .= $this->prepare_slack_message_for_order($order);
+				$message .= "❌❌❌❌ Order *#{$order_id}* has been *rejected!*" . "\n";
+			}
+		} else {
 			$message .= $this->prepare_slack_message_for_order($order);
-			$message .= "✅✅✅✅ Order *#{$order_id}* has been *approved!* 🎉🎉🎉🎉" . "\n";
-		} elseif ($action_id === 'reject_order') {
-			$order->update_status('rejected', 'Order rejected via Slack.');
-			$message .= $this->prepare_slack_message_for_order($order);
-			$message .= "❌❌❌❌ Order *#{$order_id}* has been *rejected!*" . "\n";
+			$message .= " :ballot_box_with_check::ballot_box_with_check:Order *#{$order_id}* status has already been changed to *#{$order_status}* 🎉" . "\n";
+			// ✅ Update the Slack message
 		}
+
 		// ✅ Update the Slack message
 		$this->send_slack_update($response_url, $message);
 	}
