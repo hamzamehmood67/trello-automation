@@ -15,7 +15,7 @@
  * @wordpress-plugin
  * Plugin Name:       Trello Automation
  * Plugin URI:        https://#
- * Description:       Automatically create Trello cards from Order items, streamlining task management and workflow.
+ * Description:       Automatically create Trello cards, send slack notification streamlining workflow.
  * Version:           1.3.1
  * Author:            That's So Fetch
  * Author URI:        https://thatssofetch.co/

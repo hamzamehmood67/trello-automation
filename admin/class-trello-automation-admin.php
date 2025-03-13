@@ -184,6 +184,8 @@ class Trello_Automation_Admin
 		// Send the consolidated Slack message
 		$this->send_to_slack($slack_message, $order->get_order_number());
 	}
+
+
 	private function write_message_to_file($message, $order_id)
 	{
 		// Define the file path
@@ -484,10 +486,12 @@ class Trello_Automation_Admin
 		$customer_name = $order->get_formatted_billing_full_name();
 		$item_meta_data = $item->get_meta_data();
 
+		$customer_link = "https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name) . "/\n\n";
+
 		$message = "Pet Care Service: " . $product_name . "\n";
 		$message .= "Order Dates: " . $order_date . "\n";
-		$message .= "Client Name: " . $customer_name . "\n";
-		$message .= "Client Profile: https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name) . "/\n\n";
+		$message .= "Client Name: <" . $customer_link . "|{$customer_name}>\n";
+		// $message .= "Client Profile: https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name) . "/\n\n";
 
 		$message .= $this->getPetNames($order);
 
@@ -511,10 +515,10 @@ class Trello_Automation_Admin
 	private function prepare_slack_message_for_order($order)
 	{
 		$order_link = admin_url('post.php?post=' . $order->get_id() . '&action=edit');
-
-		$message = "Order ID: " . $order->get_order_number() . "\n";
-		$message .= "Order Status: " . $order->get_status() . "\n";
-		$message .= "Link to Order: <" . $order_link . "|View Order>\n";
+		$order_id = $order->get_order_number();
+		// $message = "Order ID: " . $order->get_order_number() . "\n";
+		$message = "Order Status: " . $order->get_status() . "\n";
+		$message .= "Link to Order: <" . $order_link . "|{$order_id}>\n";
 
 		return $message;
 	}
