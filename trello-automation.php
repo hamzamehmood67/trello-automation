@@ -16,9 +16,9 @@
  * Plugin Name:       Trello Automation
  * Plugin URI:        https://#
  * Description:       Automatically create Trello cards from Order items, streamlining task management and workflow.
- * Version:           1.3.0
- * Author:            Hamza Mehmood
- * Author URI:        https://https://www.linkedin.com/in/thehamzamehmood/
+ * Version:           1.3.1
+ * Author:            That's So Fetch
+ * Author URI:        https://thatssofetch.co/
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain:       trello-automation

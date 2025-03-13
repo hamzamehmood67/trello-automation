@@ -253,8 +253,17 @@ class Trello_Automation_Admin
 					error_log('Field value not found for class ' . $class_name);
 					return;
 				}
-				$field_value = (string) $field_value;
-				$message .= "Pet Name: " . $field_value;
+				if (is_array($field_value)) {
+					$message .= "Pet Names: ";
+					foreach ($field_value as $pet_name) {
+						$message .= $pet_name . ", ";
+					}
+					$message = rtrim($message, ", "); // Remove the trailing comma and space
+				} else {
+					// Handle single pet name case
+					$field_value = (string) $field_value;
+					$message .= "Pet Name: " . $field_value;
+				}
 			}
 		}
 
@@ -460,7 +469,8 @@ class Trello_Automation_Admin
 			'_wsf_submit_id',
 			'_wsf_form_id',
 			'Total Order Amount:',
-			'Additional Charge for Extra Day of Dog Daycare:'
+			'Additional Charge for Extra Day of Dog Daycare:',
+			'Cart Total'
 		];
 	}
 
