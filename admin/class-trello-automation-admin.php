@@ -176,6 +176,7 @@ class Trello_Automation_Admin
 		}
 		// Prepare and send Slack message
 		$slack_message = "";
+
 		foreach ($order->get_items() as $item_id => $item) {
 			$slack_message .= $this->prepare_slack_message_for_item($order, $item);
 		}
@@ -490,8 +491,9 @@ class Trello_Automation_Admin
 
 		$message = "Pet Care Service: " . $product_name . "\n";
 		$message .= "Order Dates: " . $order_date . "\n";
-		$message .= "Client Name: <" . $customer_link . "|{$customer_name}>\n";
-		// $message .= "Client Profile: https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name) . "/\n\n";
+		$message .= "Client Name: <" . $customer_link . "|" . $customer_name . ">\n";
+		$message .= "Client Profile: https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name) . "/\n\n";
+		//$message .= "*User Role:* {$user_role}\n"; // Include user role at the beginning
 
 		$message .= $this->getPetNames($order);
 
@@ -675,11 +677,11 @@ class Trello_Automation_Admin
 			if ($action_id === 'approve_order') {
 				$order->update_status('approved', 'Order approved via Slack.');
 				$message .= $this->prepare_slack_message_for_order($order);
-				$message .= "✅✅✅✅ Order *#{$order_id}* has been *approved!* 🎉🎉🎉🎉" . "\n";
+				$message .= "✅✅ Order *#{$order_id}* has been *approved!* 🎉🎉" . "\n";
 			} elseif ($action_id === 'reject_order') {
 				$order->update_status('rejected', 'Order rejected via Slack.');
 				$message .= $this->prepare_slack_message_for_order($order);
-				$message .= "❌❌❌❌ Order *#{$order_id}* has been *rejected!*" . "\n";
+				$message .= "❌❌ Order *#{$order_id}* has been *rejected!*" . "\n";
 			}
 		} else {
 			$message .= $this->prepare_slack_message_for_order($order);
