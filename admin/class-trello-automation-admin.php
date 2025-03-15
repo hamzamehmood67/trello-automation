@@ -265,12 +265,12 @@ class Trello_Automation_Admin
 				} else {
 					// Handle single pet name case
 					$field_value = (string) $field_value;
-					$message .= "Pet Name: " . $field_value;
+					$message .= "*Pet Name:* " . $field_value;
 				}
 			}
 		}
 
-		$message .= "\n";
+		$message .= "\n\n";
 
 		return $message;
 	}
@@ -472,9 +472,55 @@ class Trello_Automation_Admin
 			'_wsf_submit_id',
 			'_wsf_form_id',
 			'Total Order Amount:',
-			'Additional Charge for Extra Day of Dog Daycare:',
 			'Cart Total'
 		];
+	}
+
+	private function get_excluded_boarding()
+	{
+		return [
+			'Boarding rate per night:',
+			'Base price for dog boarding =',
+			'Extended discounted base price for single dog:',
+			'Additional Price per Dog:',
+			'Puppy Price',
+			'Morning transportation fee',
+			'Evening transportation fee',
+			'Discounted base price for single dog:',
+			'Cart Total',
+			'Please check the box below to confirm that you understand and accept the extended daycare fee.'
+		];
+	}
+
+	private function get_excluded_daycare()
+	{
+		return [
+			'Additional Dog Price',
+			'Price for Morning Transportation',
+			'Price for Evening Transportation ',
+			'Final Price',
+			'Additional Charge for Extra Day of Dog Daycare:',
+			'There is $10 holiday upcharge for this date. Please check the box below to continue:'
+		];
+	}
+
+	private function getUserRole($order)
+	{
+		$user_id = $order->get_user_id();
+
+		// Get the user object
+		$user = $user_id ? get_userdata($user_id) : null;
+
+		// Get the user's role(s)
+		$user_roles = $user ? $user->roles : array('guest');
+
+		// Convert roles array to a string
+		$user_role_str = implode(', ', $user_roles);
+
+		// Prepare and send Slack message
+		$message = "*Client Role:* {$user_role_str}\n\n";
+
+		return $message;
 	}
 
 	/**
@@ -486,21 +532,26 @@ class Trello_Automation_Admin
 		$order_date = $order->get_date_created()->date('F j, Y g:i a');
 		$customer_name = $order->get_formatted_billing_full_name();
 		$item_meta_data = $item->get_meta_data();
-
-		$customer_link = "https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name) . "/\n\n";
-
+		$customer_link = "https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name);
 		$message = "Pet Care Service: " . $product_name . "\n";
 		$message .= "Order Dates: " . $order_date . "\n";
-		$message .= "Client Name: <" . $customer_link . "|" . $customer_name . ">\n";
-		$message .= "Client Profile: https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name) . "/\n\n";
-		//$message .= "*User Role:* {$user_role}\n"; // Include user role at the beginning
+		$message .= "*Client:* <" . $customer_link . "|{$customer_name}>\n";
 
+		$message .= $this->getUserRole($order);
 		$message .= $this->getPetNames($order);
 
 		if (!empty($item_meta_data)) {
 			$message .= "*Service Detail*:\n";
 			foreach ($item_meta_data as $meta) {
-				if (in_array($meta->key, $this->get_excluded_meta_keys())) {
+				$excluded_keys = [];
+				if ($product_name == 'Dog Boarding') {
+					$excluded_keys = $this->get_excluded_boarding();
+				} elseif ($product_name == 'Dog Daycare') {
+					$excluded_keys = $this->get_excluded_daycare();
+				}
+				$excluded_keys = array_merge($excluded_keys, $this->get_excluded_meta_keys());
+
+				if (in_array($meta->key, $excluded_keys)) {
 					continue;
 				}
 				$message .= ' * 🔴' . $meta->key . '* ' . "\n  ✅ " . $meta->value . "\n\n";
@@ -508,6 +559,8 @@ class Trello_Automation_Admin
 		}
 
 		$message .= "\n"; // Add a newline between services
+		$message .= "-----------------------------------";
+		$message .= "\n";
 		return $message;
 	}
 
@@ -518,9 +571,10 @@ class Trello_Automation_Admin
 	{
 		$order_link = admin_url('post.php?post=' . $order->get_id() . '&action=edit');
 		$order_id = $order->get_order_number();
-		// $message = "Order ID: " . $order->get_order_number() . "\n";
-		$message = "Order Status: " . $order->get_status() . "\n";
-		$message .= "Link to Order: <" . $order_link . "|{$order_id}>\n";
+
+		$message = "*Order Status:* " . $order->get_status() . "\n";
+		$message .= "*Link to Order:* <" . $order_link . "|{$order_id}>\n";
+
 
 		return $message;
 	}
