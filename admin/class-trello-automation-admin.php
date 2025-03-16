@@ -535,6 +535,7 @@ class Trello_Automation_Admin
 		$customer_link = "https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name);
 		$message = "Pet Care Service: " . $product_name . "\n";
 		$message .= "Order Dates: " . $order_date . "\n";
+		$message .= "\n";
 		$message .= "*Client:* <" . $customer_link . "|{$customer_name}>\n";
 
 		$message .= $this->getUserRole($order);
