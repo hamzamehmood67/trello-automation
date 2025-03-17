@@ -210,67 +210,130 @@ class Trello_Automation_Admin
 		return true;
 	}
 
+	// public function getPetNames($order)
+	// {
+	// 	$message = "";
+	// 	foreach ($order->get_items() as $item_id => $item) {
+	// 		$item_meta_data = $item->get_meta_data();
+
+	// 		if (!empty($item_meta_data)) {
+	// 			foreach ($item_meta_data as $meta) {
+	// 				if ($meta->key == '_wsf_submit_id') {
+	// 					$wsf_submit_id = $meta->value;
+	// 				}
+
+	// 				if ($meta->key == '_wsf_form_id') {
+	// 					$wsf_form_id = $meta->value;
+	// 				}
+	// 			}
+
+	// 			// Check if the meta keys exist
+	// 			if (empty($wsf_submit_id) || empty($wsf_form_id)) {
+	// 				error_log('WS Form submission ID or form ID is missing for order #' . $order_id);
+	// 				return;
+	// 			}
+
+	// 			// Fetch WS Form submission object
+	// 			$submit_object = wsf_submit_get_object($wsf_submit_id);
+	// 			if (!$submit_object) {
+	// 				error_log('Failed to fetch WS Form submission object for submit ID ' . $wsf_submit_id);
+	// 				return;
+	// 			}
+
+	// 			// Fetch WS Form form object
+	// 			$form_object = wsf_form_get_object($wsf_form_id);
+	// 			if (!$form_object) {
+	// 				error_log('Failed to fetch WS Form form object for form ID ' . $wsf_form_id);
+	// 				return;
+	// 			}
+
+	// 			$class_name = 'pet_name';
+
+	// 			// Get the field value from the submission data
+	// 			$field_value = wsf_submit_get_value_by_field_class($form_object, $submit_object, $class_name, 'N/A', true);
+
+	// 			if (empty($field_value)) {
+	// 				error_log('Field value not found for class ' . $class_name);
+	// 				return;
+	// 			}
+	// 			if (is_array($field_value)) {
+	// 				$message .= "Pet Names: ";
+	// 				foreach ($field_value as $pet_name) {
+	// 					$message .= $pet_name . ", ";
+	// 				}
+	// 				$message = rtrim($message, ", "); // Remove the trailing comma and space
+	// 			} else {
+	// 				// Handle single pet name case
+	// 				$field_value = (string) $field_value;
+	// 				$message .= "*Pet Name:* " . $field_value;
+	// 			}
+	// 		}
+	// 	}
+
+	// 	$message .= "\n\n";
+
+	// 	return $message;
+	// }
+
+
 	public function getPetNames($order)
 	{
 		$message = "";
+
 		foreach ($order->get_items() as $item_id => $item) {
-			$item_meta_data = $item->get_meta_data();
+			try {
+				$item_meta_data = $item->get_meta_data();
+				$wsf_submit_id = null;
+				$wsf_form_id = null;
 
-			if (!empty($item_meta_data)) {
-				foreach ($item_meta_data as $meta) {
-					if ($meta->key == '_wsf_submit_id') {
-						$wsf_submit_id = $meta->value;
-					}
-
-					if ($meta->key == '_wsf_form_id') {
-						$wsf_form_id = $meta->value;
+				if (!empty($item_meta_data)) {
+					foreach ($item_meta_data as $meta) {
+						if ($meta->key == '_wsf_submit_id') {
+							$wsf_submit_id = $meta->value;
+						}
+						if ($meta->key == '_wsf_form_id') {
+							$wsf_form_id = $meta->value;
+						}
 					}
 				}
 
-				// Check if the meta keys exist
 				if (empty($wsf_submit_id) || empty($wsf_form_id)) {
-					error_log('WS Form submission ID or form ID is missing for order #' . $order_id);
-					return;
+					error_log('WS Form submission ID or form ID is missing for order #' . $order->get_id());
+					continue;
 				}
 
-				// Fetch WS Form submission object
 				$submit_object = wsf_submit_get_object($wsf_submit_id);
 				if (!$submit_object) {
 					error_log('Failed to fetch WS Form submission object for submit ID ' . $wsf_submit_id);
-					return;
+					continue;
 				}
 
-				// Fetch WS Form form object
 				$form_object = wsf_form_get_object($wsf_form_id);
 				if (!$form_object) {
 					error_log('Failed to fetch WS Form form object for form ID ' . $wsf_form_id);
-					return;
+					continue;
 				}
 
 				$class_name = 'pet_name';
-
-				// Get the field value from the submission data
 				$field_value = wsf_submit_get_value_by_field_class($form_object, $submit_object, $class_name, 'N/A', true);
 
 				if (empty($field_value)) {
 					error_log('Field value not found for class ' . $class_name);
-					return;
+					continue;
 				}
+
 				if (is_array($field_value)) {
-					$message .= "Pet Names: ";
-					foreach ($field_value as $pet_name) {
-						$message .= $pet_name . ", ";
-					}
-					$message = rtrim($message, ", "); // Remove the trailing comma and space
+					$message .= "Pet Names: " . implode(", ", $field_value);
 				} else {
-					// Handle single pet name case
-					$field_value = (string) $field_value;
-					$message .= "*Pet Name:* " . $field_value;
+					$message .= "*Pet Name:* " . (string)$field_value;
 				}
+
+				$message .= "\n\n";
+			} catch (Exception $e) {
+				error_log('Error in getPetNames function: ' . $e->getMessage());
+				continue;
 			}
 		}
-
-		$message .= "\n\n";
 
 		return $message;
 	}
