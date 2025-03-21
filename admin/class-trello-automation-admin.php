@@ -323,7 +323,7 @@ class Trello_Automation_Admin
 				}
 
 				if (is_array($field_value)) {
-					$message .= "Pet Names: " . implode(", ", $field_value);
+					$message .= "*Pet Names:* " . implode(", ", $field_value);
 				} else {
 					$message .= "*Pet Name:* " . (string)$field_value;
 				}
@@ -562,6 +562,7 @@ class Trello_Automation_Admin
 			'Price for Morning Transportation',
 			'Price for Evening Transportation ',
 			'Final Price',
+			'Base price for dog boarding =',
 			'Additional Charge for Extra Day of Dog Daycare:',
 			'There is $10 holiday upcharge for this date. Please check the box below to continue:'
 		];
@@ -596,8 +597,8 @@ class Trello_Automation_Admin
 		$customer_name = $order->get_formatted_billing_full_name();
 		$item_meta_data = $item->get_meta_data();
 		$customer_link = "https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name);
-		$message = "Pet Care Service: " . $product_name . "\n";
-		$message .= "Order Dates: " . $order_date . "\n";
+		$message = "*Pet Care Service:* " . $product_name . "\n";
+		$message .= "*Order Dates:* " . $order_date . "\n";
 		$message .= "\n";
 		$message .= "*Client:* <" . $customer_link . "|{$customer_name}>\n";
 
@@ -633,12 +634,21 @@ class Trello_Automation_Admin
 	 */
 	private function prepare_slack_message_for_order($order)
 	{
+		// Get the order edit link
 		$order_link = admin_url('post.php?post=' . $order->get_id() . '&action=edit');
 		$order_id = $order->get_order_number();
 
+		// Start building the Slack message
 		$message = "*Order Status:* " . $order->get_status() . "\n";
 		$message .= "*Link to Order:* <" . $order_link . "|{$order_id}>\n";
 
+		// Get the customer note from the checkout page
+		$customer_note = $order->get_customer_note(); // This retrieves the note entered on the checkout page
+
+		// Add the customer note to the Slack message if it exists
+		if (!empty($customer_note)) {
+			$message .= "*Customer Note:* " . $customer_note . "\n";
+		}
 
 		return $message;
 	}
