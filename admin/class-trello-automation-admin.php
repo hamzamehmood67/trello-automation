@@ -519,6 +519,14 @@ class Trello_Automation_Admin
 				$description .= ' - ' . $meta->key . ': ' . $meta->value . PHP_EOL;
 			}
 		}
+		$description .= PHP_EOL;
+		// Get the customer note from the checkout page
+		$customer_note = $order->get_customer_note(); // This retrieves the note entered on the checkout page
+
+		// Add the customer note to the Slack message if it exists
+		if (!empty($customer_note)) {
+			$description .= "*Customer Note:* " . $customer_note . PHP_EOL;
+		}
 
 		return $description;
 	}
