@@ -166,24 +166,51 @@ class Trello_Automation_Admin
 		}
 	}
 
-	//Function to send slack notification of new Order
-	public function create_slack_notification($order_id)
+	// //Function to send slack notification of new Order
+	// public function create_slack_notification($order_id)
+	// {
+	// 	$order = wc_get_order($order_id);
+	// 	if (!$order) {
+	// 		error_log("Order #{$order_id} not found.");
+	// 		return;
+	// 	}
+	// 	// Prepare and send Slack message
+	// 	$slack_message = "";
+
+	// 	foreach ($order->get_items() as $item_id => $item) {
+	// 		$slack_message .= $this->prepare_slack_message_for_item($order, $item);
+	// 	}
+	// 	$slack_message .= $this->prepare_slack_message_for_order($order);
+
+	// 	// Send the consolidated Slack message
+	// 	$this->send_to_slack($slack_message, $order->get_order_number());
+	// }
+
+
+	public function create_slack_notification($order_id, $attempt = 1)
 	{
 		$order = wc_get_order($order_id);
 		if (!$order) {
 			error_log("Order #{$order_id} not found.");
 			return;
 		}
-		// Prepare and send Slack message
-		$slack_message = "";
 
+		// Prepare message
+		$slack_message = "";
 		foreach ($order->get_items() as $item_id => $item) {
 			$slack_message .= $this->prepare_slack_message_for_item($order, $item);
 		}
 		$slack_message .= $this->prepare_slack_message_for_order($order);
 
-		// Send the consolidated Slack message
-		$this->send_to_slack($slack_message, $order->get_order_number());
+		// Try to send
+		$result = $this->send_to_slack($slack_message, $order->get_order_number());
+
+		// If failed and we have retries left (max 3 attempts)
+		if (!$result && $attempt < 3) {
+			error_log("Retry attempt {$attempt} for order #{$order_id}");
+			sleep(2); // Short delay before retry
+			$this->create_slack_notification($order_id, $attempt + 1);
+		}
 	}
 
 
@@ -368,41 +395,41 @@ class Trello_Automation_Admin
 	}
 
 
-	public function create_trello_card_from_order_old($order_id)
-	{
-		$order = wc_get_order($order_id);
-		if (!$order) {
-			error_log("Order #{$order_id} not found.");
-			return;
-		}
+	// public function create_trello_card_from_order_old($order_id)
+	// {
+	// 	$order = wc_get_order($order_id);
+	// 	if (!$order) {
+	// 		error_log("Order #{$order_id} not found.");
+	// 		return;
+	// 	}
 
-		// Prepare Slack message
-		$slack_message = "";
+	// 	// Prepare Slack message
+	// 	$slack_message = "";
 
-		// Loop through each order item
-		foreach ($order->get_items() as $item_id => $item) {
-			$product_name = $item->get_name();
+	// 	// Loop through each order item
+	// 	foreach ($order->get_items() as $item_id => $item) {
+	// 		$product_name = $item->get_name();
 
-			// Check if the product has a mapped Trello list
-			if ($this->is_product_mapped_to_trello_list($product_name)) {
-				$list_id = $this->get_trello_list_id_for_product($product_name);
+	// 		// Check if the product has a mapped Trello list
+	// 		if ($this->is_product_mapped_to_trello_list($product_name)) {
+	// 			$list_id = $this->get_trello_list_id_for_product($product_name);
 
-				// Create Trello card
-				$this->create_trello_card($order, $item, $list_id);
+	// 			// Create Trello card
+	// 			$this->create_trello_card($order, $item, $list_id);
 
-				// Add item details to Slack message
-				$slack_message .= $this->prepare_slack_message_for_item($order, $item);
-			} else {
-				error_log('No Trello list mapping found for product: ' . $product_name);
-			}
-		}
+	// 			// Add item details to Slack message
+	// 			$slack_message .= $this->prepare_slack_message_for_item($order, $item);
+	// 		} else {
+	// 			error_log('No Trello list mapping found for product: ' . $product_name);
+	// 		}
+	// 	}
 
-		// Add order details to Slack message
-		$slack_message .= $this->prepare_slack_message_for_order($order);
+	// 	// Add order details to Slack message
+	// 	$slack_message .= $this->prepare_slack_message_for_order($order);
 
-		// Send the consolidated Slack message
-		$this->send_to_slack($slack_message, $order->get_order_number());
-	}
+	// 	// Send the consolidated Slack message
+	// 	$this->send_to_slack($slack_message, $order->get_order_number());
+	// }
 
 	/**
 	 * Check if a product is mapped to a Trello list.
@@ -665,67 +692,132 @@ class Trello_Automation_Admin
 	{
 		$slack_channel_id = get_option('slack_channel_id', '');
 		$slack_api_token = get_option('slack_api_token', '');
-		$url = 'https://slack.com/api/chat.postMessage';
 
-		$blocks = json_encode([
-			[
-				"type" => "section",
-				"text" => [
-					"type" => "mrkdwn",
-					"text" => $message,
-				],
-			],
-			[
-				"type" => "actions",
-				"elements" => [
-					[
-						"type" => "button",
-						"text" => [
-							"type" => "plain_text",
-							"text" => "Approve",
-						],
-						"style" => "primary",
-						"action_id" => "approve_order",
-						"value" => $order_id, // Store the order ID here
-					],
-					[
-						"type" => "button",
-						"text" => [
-							"type" => "plain_text",
-							"text" => "Reject",
-						],
-						"style" => "danger",
-						"action_id" => "reject_order",
-						"value" => $order_id, // Store the order ID here
-					],
-				],
-			],
-		]);
+		if (empty($slack_channel_id) || empty($slack_api_token)) {
+			error_log("Slack config missing for order #{$order_id}");
+			return false;
+		}
 
-		$response = wp_remote_post($url, [
+		$response = wp_remote_post('https://slack.com/api/chat.postMessage', [
 			'body' => json_encode([
 				'channel' => $slack_channel_id,
 				'text' => $message,
-				'blocks' => $blocks,
+				'blocks' => [
+					[
+						'type' => 'section',
+						'text' => ['type' => 'mrkdwn', 'text' => $message]
+					],
+					[
+						'type' => 'actions',
+						'elements' => [
+							[
+								'type' => 'button',
+								'text' => ['type' => 'plain_text', 'text' => 'Approve'],
+								'style' => 'primary',
+								'action_id' => 'approve_order',
+								'value' => $order_id
+							],
+							[
+								'type' => 'button',
+								'text' => ['type' => 'plain_text', 'text' => 'Reject'],
+								'style' => 'danger',
+								'action_id' => 'reject_order',
+								'value' => $order_id
+							]
+						]
+					]
+				]
 			]),
 			'headers' => [
-				'Content-Type' => 'application/json; charset=utf-8',
-				'Authorization' => 'Bearer ' . $slack_api_token,
+				'Content-Type' => 'application/json',
+				'Authorization' => 'Bearer ' . $slack_api_token
 			],
+			'timeout' => 5
 		]);
 
-		// Log errors or success
 		if (is_wp_error($response)) {
-			error_log('Slack API Error: ' . $response->get_error_message());
-		} else {
-			$response_body = json_decode(wp_remote_retrieve_body($response), true);
-			if ($response_body['ok']) {
-				error_log('Slack notification sent successfully.');
-			} else {
-				error_log('Slack API Errorr: ' . $response_body['error']);
-			}
+			error_log("Slack API error for order #{$order_id}: " . $response->get_error_message());
+			$this->write_message_to_file("Slack API error for order #{$order_id}: " . $response->get_error_message(), $order_id);
+			return false;
 		}
+
+		$body = json_decode(wp_remote_retrieve_body($response), true);
+		if (empty($body['ok'])) {
+			error_log("Slack API failed for order #{$order_id}: " . ($body['error'] ?? 'Unknown error'));
+			$this->write_message_to_file("Slack API failed for order #{$order_id}: " . ($body['error'] ?? 'Unknown error'), $order_id);
+			return false;
+		}
+
+		return true;
 	}
+
+	// private function send_to_slack($message, $order_id)
+	// {
+	// 	$slack_channel_id = get_option('slack_channel_id', '');
+	// 	$slack_api_token = get_option('slack_api_token', '');
+	// 	$url = 'https://slack.com/api/chat.postMessage';
+
+	// 	$blocks = json_encode([
+	// 		[
+	// 			"type" => "section",
+	// 			"text" => [
+	// 				"type" => "mrkdwn",
+	// 				"text" => $message,
+	// 			],
+	// 		],
+	// 		[
+	// 			"type" => "actions",
+	// 			"elements" => [
+	// 				[
+	// 					"type" => "button",
+	// 					"text" => [
+	// 						"type" => "plain_text",
+	// 						"text" => "Approve",
+	// 					],
+	// 					"style" => "primary",
+	// 					"action_id" => "approve_order",
+	// 					"value" => $order_id, // Store the order ID here
+	// 				],
+	// 				[
+	// 					"type" => "button",
+	// 					"text" => [
+	// 						"type" => "plain_text",
+	// 						"text" => "Reject",
+	// 					],
+	// 					"style" => "danger",
+	// 					"action_id" => "reject_order",
+	// 					"value" => $order_id, // Store the order ID here
+	// 				],
+	// 			],
+	// 		],
+	// 	]);
+
+	// 	$response = wp_remote_post($url, [
+	// 		'body' => json_encode([
+	// 			'channel' => $slack_channel_id,
+	// 			'text' => $message,
+	// 			'blocks' => $blocks,
+	// 		]),
+	// 		'headers' => [
+	// 			'Content-Type' => 'application/json; charset=utf-8',
+	// 			'Authorization' => 'Bearer ' . $slack_api_token,
+	// 		],
+	// 	]);
+
+	// 	// Log errors or success
+	// 	if (is_wp_error($response)) {
+	// 		error_log('Slack API Error: ' . $response->get_error_message());
+	// 		$this->write_message_to_file('Slack API Error: ' . $response->get_error_message(), $order_id);
+	// 	} else {
+	// 		$response_body = json_decode(wp_remote_retrieve_body($response), true);
+	// 		if ($response_body['ok']) {
+	// 			error_log('Slack notification sent successfully.');
+	// 		} else {
+	// 			error_log('Slack API Errorr: ' . $response_body['error']);
+	// 			$this->write_message_to_file('Slack API Errorr: ' . $response_body['error'], $order_id);
+	// 		}
+	// 	}
+	// }
 
 
 
