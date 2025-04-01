@@ -625,7 +625,7 @@ class Trello_Automation_Admin
 	/**
 	 * Prepare the Slack message for an order item.
 	 */
-	private function prepare_slack_message_for_item($order, $item)
+	private function prepare_slack_message_for_item_old($order, $item)
 	{
 		$product_name = $item->get_name();
 		$order_date = $order->get_date_created()->date('F j, Y g:i a');
@@ -665,17 +665,116 @@ class Trello_Automation_Admin
 	}
 
 	/**
+	 * Returns the abbreviation mapping for Dog Boarding service.
+	 */
+	private function get_dog_boarding_abbreviations()
+	{
+		return [
+			'Please select your check in date:' => 'Check In-Date:',
+			'How many nights do you need to board your dog(s)?' => 'Number of Nights:',
+			'Please click here and select your check out date:' => 'Check Out Date:',
+			'Would you like to add any additional dogs to your party?' => 'Additional Dogs:',
+			'How many additional dogs do you have?' => 'Number of Additional Dogs:',
+			'Do you have any puppies (dogs under one year old) in your party?' => 'Puppies:',
+			'Do we need to administer any medications during this stay, including pills, supplements, ointments, sprays, or drops?' => 'Medications:',
+			'Transportation: Would you like to use our pet taxi service for pick-up and/or drop-off?' => 'Transportation:',
+			'Arrival Time: What time do you think you will drop off your dog(s) (Normal Business Hours are 7am-9pm)?' => 'Arrival Time:',
+			'Departure Time: What time do you think you will pick your dog(s) up (Normal Business Hours are 7am-9pm)?' => 'Departure Time:'
+		];
+	}
+
+	/**
+	 * Returns the abbreviation mapping for Dog Daycare service.
+	 */
+	private function get_dog_daycare_abbreviations()
+	{
+		return [
+			'Please click here and select a date:' => 'Check In-Date:',
+			'Would you like to add any additional dogs to your party?' => 'Additional Dogs:',
+			'Do you have any puppies (dogs under one year old) in your party?' => 'Puppies:',
+			'How many additional dogs do you have?' => 'Number of Additional Dogs:',
+			'Morning Transportation: Would you like us to pick up your dog(s)?' => 'Morning Transportation:',
+			'Evening Transportation: Would you like us to drop off your dog(s)?' => 'Evening Transportaion:',
+			'Arrival Time: What time do you think you will drop-off your dog(s) in the morning (Normal Business Hours are 7am-9pm)?' => 'Arrival Time:',
+			'Departure Time: What time do you think you will pick-up your dog(s) up in the evening (Normal Business Hours are 7am-9pm)?' => 'Departure Time:',
+			'Please click here and select a date for Dog Daycare Appointment #text(#field(1338))' => 'Additional Dates:'
+		];
+	}
+
+	/**
+	 * Prepare the Slack message for an order item.
+	 */
+	private function prepare_slack_message_for_item($order, $item)
+	{
+		$product_name   = $item->get_name();
+		$order_date     = $order->get_date_created()->date('F j, Y g:i a');
+		$item_meta_data = $item->get_meta_data();
+
+
+		$message  = "*Pet Care Service:* " . $product_name . "\n";
+		$message .= "*Order Dates:* " . $order_date . "\n\n";
+		$message .= $this->getPetNames($order);
+
+		if (!empty($item_meta_data)) {
+			$message .= "*Service Detail*:\n";
+
+			// Determine abbreviation mapping based on the service.
+			if ($product_name == 'Dog Boarding') {
+				$abbreviations = $this->get_dog_boarding_abbreviations();
+			} elseif ($product_name == 'Dog Daycare') {
+				$abbreviations = $this->get_dog_daycare_abbreviations();
+			} else {
+				$abbreviations = [];
+			}
+
+			// Loop through each meta field and output the abbreviated version if available.
+			if (!empty($abbreviations)) {
+				foreach ($item_meta_data as $meta) {
+					if (isset($abbreviations[$meta->key])) {
+						$display_key = $abbreviations[$meta->key];
+						$message .= ' * 🔴' . $display_key . '* ' . "\n  ✅ " . $meta->value . "\n\n";
+					}
+				}
+			} else {
+				// Fallback for services without an abbreviation mapping.
+				$excluded_keys = [];
+				if ($product_name == 'Dog Boarding') {
+					$excluded_keys = $this->get_excluded_boarding();
+				} elseif ($product_name == 'Dog Daycare') {
+					$excluded_keys = $this->get_excluded_daycare();
+				}
+				$excluded_keys = array_merge($excluded_keys, $this->get_excluded_meta_keys());
+				foreach ($item_meta_data as $meta) {
+					if (in_array($meta->key, $excluded_keys)) {
+						continue;
+					}
+					$message .= ' * 🔴' . $meta->key . '* ' . "\n  ✅ " . $meta->value . "\n\n";
+				}
+			}
+		}
+
+		$message .= "\n-----------------------------------\n";
+		return $message;
+	}
+
+
+
+	/**
 	 * Prepare the Slack message for the order.
 	 */
 	private function prepare_slack_message_for_order($order)
 	{
 		// Get the order edit link
 		$order_link = admin_url('post.php?post=' . $order->get_id() . '&action=edit');
+		$customer_name  = $order->get_formatted_billing_full_name();
+		$customer_link  = "https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name);
 		$order_id = $order->get_order_number();
 
 		// Start building the Slack message
 		$message = "*Order Status:* " . $order->get_status() . "\n";
 		$message .= "*Link to Order:* <" . $order_link . "|{$order_id}>\n";
+		$message .= "*Client:* <" . $customer_link . "|{$customer_name}>\n";
+		$message .= $this->getUserRole($order);
 
 		// Get the customer note from the checkout page
 		$customer_note = $order->get_customer_note(); // This retrieves the note entered on the checkout page
@@ -779,7 +878,7 @@ class Trello_Automation_Admin
 		return true;
 	}
 
-	
+
 
 
 
