@@ -748,76 +748,38 @@ class Trello_Automation_Admin
 			return false;
 		}
 
+
+		if (is_wp_error($response)) {
+			$error_message = "Slack API transport error for order #{$order_id}: " . $response->get_error_message();
+			error_log($error_message);
+			$this->write_message_to_file($error_message, $order_id);
+			return false;
+		}
+
+		$body = json_decode(wp_remote_retrieve_body($response), true);
+		$response_code = wp_remote_retrieve_response_code($response);
+
+		if (empty($body['ok'])) {
+			// Prepare detailed error message
+			$error_details = [
+				'order_id' => $order_id,
+				'timestamp' => current_time('mysql'),
+				'response_code' => $response_code,
+				'slack_error' => $body['error'] ?? 'Unknown error',
+				'full_response' => $body
+			];
+
+			$error_message = "Slack API failed for order #{$order_id}:\n" .
+				print_r($error_details, true);
+
+			error_log($error_message);
+			$this->write_message_to_file($error_message, $order_id);
+			return false;
+		}
 		return true;
 	}
 
-	// private function send_to_slack($message, $order_id)
-	// {
-	// 	$slack_channel_id = get_option('slack_channel_id', '');
-	// 	$slack_api_token = get_option('slack_api_token', '');
-	// 	$url = 'https://slack.com/api/chat.postMessage';
-
-	// 	$blocks = json_encode([
-	// 		[
-	// 			"type" => "section",
-	// 			"text" => [
-	// 				"type" => "mrkdwn",
-	// 				"text" => $message,
-	// 			],
-	// 		],
-	// 		[
-	// 			"type" => "actions",
-	// 			"elements" => [
-	// 				[
-	// 					"type" => "button",
-	// 					"text" => [
-	// 						"type" => "plain_text",
-	// 						"text" => "Approve",
-	// 					],
-	// 					"style" => "primary",
-	// 					"action_id" => "approve_order",
-	// 					"value" => $order_id, // Store the order ID here
-	// 				],
-	// 				[
-	// 					"type" => "button",
-	// 					"text" => [
-	// 						"type" => "plain_text",
-	// 						"text" => "Reject",
-	// 					],
-	// 					"style" => "danger",
-	// 					"action_id" => "reject_order",
-	// 					"value" => $order_id, // Store the order ID here
-	// 				],
-	// 			],
-	// 		],
-	// 	]);
-
-	// 	$response = wp_remote_post($url, [
-	// 		'body' => json_encode([
-	// 			'channel' => $slack_channel_id,
-	// 			'text' => $message,
-	// 			'blocks' => $blocks,
-	// 		]),
-	// 		'headers' => [
-	// 			'Content-Type' => 'application/json; charset=utf-8',
-	// 			'Authorization' => 'Bearer ' . $slack_api_token,
-	// 		],
-	// 	]);
-
-	// 	// Log errors or success
-	// 	if (is_wp_error($response)) {
-	// 		error_log('Slack API Error: ' . $response->get_error_message());
-	// 		$this->write_message_to_file('Slack API Error: ' . $response->get_error_message(), $order_id);
-	// 	} else {
-	// 		$response_body = json_decode(wp_remote_retrieve_body($response), true);
-	// 		if ($response_body['ok']) {
-	// 			error_log('Slack notification sent successfully.');
-	// 		} else {
-	// 			error_log('Slack API Errorr: ' . $response_body['error']);
-	// 			$this->write_message_to_file('Slack API Errorr: ' . $response_body['error'], $order_id);
-	// 		}
-	// 	}
-	// }
+	
 
 
 
