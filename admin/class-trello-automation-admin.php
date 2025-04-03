@@ -700,6 +700,32 @@ class Trello_Automation_Admin
 			'Please click here and select a date for Dog Daycare Appointment #text(#field(1338))' => 'Additional Dates:'
 		];
 	}
+	/**
+	 * Returns the abbreviation mapping for Dog Bath service.
+	 */
+	private function get_dog_bath_abbreviations()
+	{
+		return [
+			'Select a date for your dog\'s bath:' => 'Dog Bath Date:',
+			'What is your dog\'s size?' => 'Dog size:',
+			'What is your dog\'s hair length?' => 'Hair length:',
+			'How thick is your dog\'s fur?' => 'Dog fur:',
+			'Which option best describes your dog\'s fur coat:' => 'Dog fur coat:',
+			'Would you like to enhance your dog\'s bath experience by adding any à la carte options?' => 'Any à la carte options:',
+			'Would you like us to use oatmeal shampoo on your dog?' => 'Use oatmeal shampoo:',
+			'Does your dog need their ears cleaned?' => 'Ear cleaning:',
+			'Does your dog need their anal glands expressed?' => 'Anal glands:',
+			'Would you like us to trim your dog\'s nails?' => 'Trim Nails:',
+			'Would you like us to use nail clippers or a nail grinder?' => 'Clippers/Grinder:',
+			'Would you like to add-on a cleansing paw treatment?' => 'Cleaning paw:',
+			'Would you like to include a hydrating butter balm treatment to moisturize your dog\'s nose and paw pads?' => 'Butter balm:',
+			'Would you like us to give your dog\'s fur coat a full brush-out?' => 'Brush-out:',
+			'Would you like your dog to be sprayed with a leave in conditioner or cologne after their bath?' => 'After bath conditioner/cologne:',
+			'Would you like to add another bath for a different dog to your order?' => 'Additional Bath:'
+		];
+	}
+
+
 
 	/**
 	 * Prepare the Slack message for an order item.
@@ -723,6 +749,8 @@ class Trello_Automation_Admin
 				$abbreviations = $this->get_dog_boarding_abbreviations();
 			} elseif ($product_name == 'Dog Daycare') {
 				$abbreviations = $this->get_dog_daycare_abbreviations();
+			} elseif ($product_name == 'Dog Bath') {
+				$abbreviations = $this->get_dog_bath_abbreviations();
 			} else {
 				$abbreviations = [];
 			}
@@ -732,7 +760,7 @@ class Trello_Automation_Admin
 				foreach ($item_meta_data as $meta) {
 					if (isset($abbreviations[$meta->key])) {
 						$display_key = $abbreviations[$meta->key];
-						$message .= ' * 🔴' . $display_key . '* ' . "\n  ✅ " . $meta->value . "\n\n";
+						$message .= ' * 🔴' . $display_key . '* ' . "\n  ✅ " . $meta->value . "\n";
 					}
 				}
 			} else {
@@ -748,7 +776,7 @@ class Trello_Automation_Admin
 					if (in_array($meta->key, $excluded_keys)) {
 						continue;
 					}
-					$message .= ' * 🔴' . $meta->key . '* ' . "\n  ✅ " . $meta->value . "\n\n";
+					$message .= ' * 🔴' . $meta->key . '* ' . "\n  ✅ " . $meta->value . "\n";
 				}
 			}
 		}
