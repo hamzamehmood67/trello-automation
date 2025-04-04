@@ -395,41 +395,6 @@ class Trello_Automation_Admin
 	}
 
 
-	// public function create_trello_card_from_order_old($order_id)
-	// {
-	// 	$order = wc_get_order($order_id);
-	// 	if (!$order) {
-	// 		error_log("Order #{$order_id} not found.");
-	// 		return;
-	// 	}
-
-	// 	// Prepare Slack message
-	// 	$slack_message = "";
-
-	// 	// Loop through each order item
-	// 	foreach ($order->get_items() as $item_id => $item) {
-	// 		$product_name = $item->get_name();
-
-	// 		// Check if the product has a mapped Trello list
-	// 		if ($this->is_product_mapped_to_trello_list($product_name)) {
-	// 			$list_id = $this->get_trello_list_id_for_product($product_name);
-
-	// 			// Create Trello card
-	// 			$this->create_trello_card($order, $item, $list_id);
-
-	// 			// Add item details to Slack message
-	// 			$slack_message .= $this->prepare_slack_message_for_item($order, $item);
-	// 		} else {
-	// 			error_log('No Trello list mapping found for product: ' . $product_name);
-	// 		}
-	// 	}
-
-	// 	// Add order details to Slack message
-	// 	$slack_message .= $this->prepare_slack_message_for_order($order);
-
-	// 	// Send the consolidated Slack message
-	// 	$this->send_to_slack($slack_message, $order->get_order_number());
-	// }
 
 	/**
 	 * Check if a product is mapped to a Trello list.
@@ -725,6 +690,34 @@ class Trello_Automation_Admin
 		];
 	}
 
+	/**
+	 * Returns the abbreviation mapping for Dog Walk service.
+	 */
+	private function get_dog_walk_abbreviations()
+	{
+		return [
+			'Please select a date for your dog walking appointment:' => 'Appointment Date:',
+			'Do you want a 15 or 30 minute dog walk?' => 'Walk duration:',
+			'How many additional dogs do you have?' => 'Number of additional dogs:',
+			'Do you have any puppies (dogs under one year old) in your party?' => 'Puppies:',
+			'How many walks do you need to book for the day?' => 'Number of walks for the day:',
+			'Please select the time range you want your dog(s) walked:' => 'Time range:',
+			'Please click here and select a date for Dog Walking Appointment #calc(1+#section_row_number)' => 'Another Day:'
+		];
+	}
+
+	/**
+	 * Returns the abbreviation mapping for Express Nail Trim service.
+	 */
+	private function get_express_nail_trim_abbreviations()
+	{
+		return [
+			'Select a date for your dog\'s Nail Trim:' => 'Appointment Date:',
+			'What is the preferred time of day for your pets nail trim appointment on the date you selected above?' => 'Preferred time :',
+			'Would you like us to trim your pets using nail trimmers or the nail grinder?' => 'Trimmers/Grinder:',
+			'Are there any notes you would like to add your pets nail trim appointment? This is also a good place to let us know if your pet has had any issues with receiving a nail trim in the past.' => 'Any notes:'
+		];
+	}
 
 
 	/**
@@ -736,9 +729,8 @@ class Trello_Automation_Admin
 		$order_date     = $order->get_date_created()->date('F j, Y g:i a');
 		$item_meta_data = $item->get_meta_data();
 
-
 		$message  = "*Pet Care Service:* " . $product_name . "\n";
-		$message .= "*Order Dates:* " . $order_date . "\n\n";
+		$message .= "*Order Date:* " . $order_date . "\n\n";
 		$message .= $this->getPetNames($order);
 
 		if (!empty($item_meta_data)) {
@@ -751,6 +743,10 @@ class Trello_Automation_Admin
 				$abbreviations = $this->get_dog_daycare_abbreviations();
 			} elseif ($product_name == 'Dog Bath') {
 				$abbreviations = $this->get_dog_bath_abbreviations();
+			} elseif ($product_name == 'Dog Walk') {
+				$abbreviations = $this->get_dog_walk_abbreviations();
+			} elseif ($product_name == 'Express Nail Trim') {
+				$abbreviations = $this->get_express_nail_trim_abbreviations();
 			} else {
 				$abbreviations = [];
 			}
