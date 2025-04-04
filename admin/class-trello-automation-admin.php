@@ -237,71 +237,6 @@ class Trello_Automation_Admin
 		return true;
 	}
 
-	// public function getPetNames($order)
-	// {
-	// 	$message = "";
-	// 	foreach ($order->get_items() as $item_id => $item) {
-	// 		$item_meta_data = $item->get_meta_data();
-
-	// 		if (!empty($item_meta_data)) {
-	// 			foreach ($item_meta_data as $meta) {
-	// 				if ($meta->key == '_wsf_submit_id') {
-	// 					$wsf_submit_id = $meta->value;
-	// 				}
-
-	// 				if ($meta->key == '_wsf_form_id') {
-	// 					$wsf_form_id = $meta->value;
-	// 				}
-	// 			}
-
-	// 			// Check if the meta keys exist
-	// 			if (empty($wsf_submit_id) || empty($wsf_form_id)) {
-	// 				error_log('WS Form submission ID or form ID is missing for order #' . $order_id);
-	// 				return;
-	// 			}
-
-	// 			// Fetch WS Form submission object
-	// 			$submit_object = wsf_submit_get_object($wsf_submit_id);
-	// 			if (!$submit_object) {
-	// 				error_log('Failed to fetch WS Form submission object for submit ID ' . $wsf_submit_id);
-	// 				return;
-	// 			}
-
-	// 			// Fetch WS Form form object
-	// 			$form_object = wsf_form_get_object($wsf_form_id);
-	// 			if (!$form_object) {
-	// 				error_log('Failed to fetch WS Form form object for form ID ' . $wsf_form_id);
-	// 				return;
-	// 			}
-
-	// 			$class_name = 'pet_name';
-
-	// 			// Get the field value from the submission data
-	// 			$field_value = wsf_submit_get_value_by_field_class($form_object, $submit_object, $class_name, 'N/A', true);
-
-	// 			if (empty($field_value)) {
-	// 				error_log('Field value not found for class ' . $class_name);
-	// 				return;
-	// 			}
-	// 			if (is_array($field_value)) {
-	// 				$message .= "Pet Names: ";
-	// 				foreach ($field_value as $pet_name) {
-	// 					$message .= $pet_name . ", ";
-	// 				}
-	// 				$message = rtrim($message, ", "); // Remove the trailing comma and space
-	// 			} else {
-	// 				// Handle single pet name case
-	// 				$field_value = (string) $field_value;
-	// 				$message .= "*Pet Name:* " . $field_value;
-	// 			}
-	// 		}
-	// 	}
-
-	// 	$message .= "\n\n";
-
-	// 	return $message;
-	// }
-
 
 	public function getPetNames($order)
 	{
@@ -588,48 +523,6 @@ class Trello_Automation_Admin
 	}
 
 	/**
-	 * Prepare the Slack message for an order item.
-	 */
-	private function prepare_slack_message_for_item_old($order, $item)
-	{
-		$product_name = $item->get_name();
-		$order_date = $order->get_date_created()->date('F j, Y g:i a');
-		$customer_name = $order->get_formatted_billing_full_name();
-		$item_meta_data = $item->get_meta_data();
-		$customer_link = "https://thatssofetch.co/profile/" . str_replace(' ', '-', $customer_name);
-		$message = "*Pet Care Service:* " . $product_name . "\n";
-		$message .= "*Order Dates:* " . $order_date . "\n";
-		$message .= "\n";
-		$message .= "*Client:* <" . $customer_link . "|{$customer_name}>\n";
-
-		$message .= $this->getUserRole($order);
-		$message .= $this->getPetNames($order);
-
-		if (!empty($item_meta_data)) {
-			$message .= "*Service Detail*:\n";
-			foreach ($item_meta_data as $meta) {
-				$excluded_keys = [];
-				if ($product_name == 'Dog Boarding') {
-					$excluded_keys = $this->get_excluded_boarding();
-				} elseif ($product_name == 'Dog Daycare') {
-					$excluded_keys = $this->get_excluded_daycare();
-				}
-				$excluded_keys = array_merge($excluded_keys, $this->get_excluded_meta_keys());
-
-				if (in_array($meta->key, $excluded_keys)) {
-					continue;
-				}
-				$message .= ' * 🔴' . $meta->key . '* ' . "\n  ✅ " . $meta->value . "\n\n";
-			}
-		}
-
-		$message .= "\n"; // Add a newline between services
-		$message .= "-----------------------------------";
-		$message .= "\n";
-		return $message;
-	}
-
-	/**
 	 * Returns the abbreviation mapping for Dog Boarding service.
 	 */
 	private function get_dog_boarding_abbreviations()
@@ -671,20 +564,19 @@ class Trello_Automation_Admin
 	private function get_dog_bath_abbreviations()
 	{
 		return [
-			'Select a date for your dog\'s bath:' => 'Dog Bath Date:',
-			'What is your dog\'s size?' => 'Dog size:',
-			'What is your dog\'s hair length?' => 'Hair length:',
-			'How thick is your dog\'s fur?' => 'Dog fur:',
-			'Which option best describes your dog\'s fur coat:' => 'Dog fur coat:',
-			'Would you like to enhance your dog\'s bath experience by adding any à la carte options?' => 'Any à la carte options:',
-			'Would you like us to use oatmeal shampoo on your dog?' => 'Use oatmeal shampoo:',
-			'Does your dog need their ears cleaned?' => 'Ear cleaning:',
-			'Does your dog need their anal glands expressed?' => 'Anal glands:',
-			'Would you like us to trim your dog\'s nails?' => 'Trim Nails:',
-			'Would you like us to use nail clippers or a nail grinder?' => 'Clippers/Grinder:',
-			'Would you like to add-on a cleansing paw treatment?' => 'Cleaning paw:',
-			'Would you like to include a hydrating butter balm treatment to moisturize your dog\'s nose and paw pads?' => 'Butter balm:',
-			'Would you like us to give your dog\'s fur coat a full brush-out?' => 'Brush-out:',
+			"Select a date for your dog's bath:" => 'Dog Bath Date:',
+			"What is your dog's size?" => 'Dog size:',
+			"What is your dog's hair length?" => 'Hair length:',
+			"How thick is your dog's fur?" => 'Dog fur:',
+			"Which option best describes your dog's fur coat:" => 'Dog fur coat:',
+			'Would you like us to use oatmeal shampoo on your dog?' => 'Oatmeal Shampoo:',
+			'Does your dog need their ears cleaned?' => 'Ear Cleaning:',
+			'Does your dog need their anal glands expressed?' => 'Anal Glands:',
+			"Would you like us to trim your dog's nails?" => 'Trim Nails:',
+			'Would you like us to use nail clippers or a nail grinder?' => 'Nail Trim/Nail Grind:',
+			'Would you like to add-on a cleansing paw treatment?' => 'Paw Cleanse:',
+			"Would you like to include a hydrating butter balm treatment to moisturize your dog's nose and paw pads?" => 'Nose/Paw Pad Balm',
+			"Would you like us to give your dog's fur coat a full brush-out?" => 'Brush-out:',
 			'Would you like your dog to be sprayed with a leave in conditioner or cologne after their bath?' => 'After bath conditioner/cologne:',
 			'Would you like to add another bath for a different dog to your order?' => 'Additional Bath:'
 		];
@@ -712,10 +604,25 @@ class Trello_Automation_Admin
 	private function get_express_nail_trim_abbreviations()
 	{
 		return [
-			'Select a date for your dog\'s Nail Trim:' => 'Appointment Date:',
-			'What is the preferred time of day for your pets nail trim appointment on the date you selected above?' => 'Preferred time :',
-			'Would you like us to trim your pets using nail trimmers or the nail grinder?' => 'Trimmers/Grinder:',
+			"Select a date for your dog's Nail Trim:" => 'Appointment Date:',
+			'What is the preferred time of day for your pets nail trim appointment on the date you selected above?' => 'Preferred time:',
+			'Would you like us to trim your pets using nail trimmers or the nail grinder?' => 'Nail Trim/Nail Grind:',
 			'Are there any notes you would like to add your pets nail trim appointment? This is also a good place to let us know if your pet has had any issues with receiving a nail trim in the past.' => 'Any notes:'
+		];
+	}
+
+	/**
+	 * Returns the abbreviation mapping for At Home Cat Care service.
+	 */
+	private function get_cat_care_abbreviations()
+	{
+		return [
+			'Please select a date for your cat care appointment:' => 'Appointment Date:',
+			'Do you want a 15 or 30 minute cat visit?' => 'Duration:',
+			'How many additional cats do you have?' => 'Additional Cats:',
+			'How many visits do you need to book for the day?' => 'Number of visits:',
+			'Please select the time range you want for your Cat(s) visit:' => 'Time Range:',
+			'Please click here and select a date for Cat Care Appointment #calc(1+#section_row_number)' => 'Additional Dates:'
 		];
 	}
 
@@ -747,6 +654,8 @@ class Trello_Automation_Admin
 				$abbreviations = $this->get_dog_walk_abbreviations();
 			} elseif ($product_name == 'Express Nail Trim') {
 				$abbreviations = $this->get_express_nail_trim_abbreviations();
+			} elseif ($product_name == 'At Home Cat Care') {
+				$abbreviations = $this->get_cat_care_abbreviations();
 			} else {
 				$abbreviations = [];
 			}
@@ -755,8 +664,10 @@ class Trello_Automation_Admin
 			if (!empty($abbreviations)) {
 				foreach ($item_meta_data as $meta) {
 					if (isset($abbreviations[$meta->key])) {
-						$display_key = $abbreviations[$meta->key];
-						$message .= ' * 🔴' . $display_key . '* ' . "\n  ✅ " . $meta->value . "\n";
+						$decoded_key = html_entity_decode($meta->key, ENT_QUOTES, 'UTF-8');
+						$display_key = $abbreviations[$decoded_key];
+						$decoded_value = html_entity_decode($meta->value, ENT_QUOTES, 'UTF-8');
+						$message .= ' * 🔴' . $display_key . '* ' . "\n  ✅ " . $decoded_value . "\n";
 					}
 				}
 			} else {
@@ -772,7 +683,8 @@ class Trello_Automation_Admin
 					if (in_array($meta->key, $excluded_keys)) {
 						continue;
 					}
-					$message .= ' * 🔴' . $meta->key . '* ' . "\n  ✅ " . $meta->value . "\n";
+					$decoded_value = html_entity_decode($meta->value, ENT_QUOTES, 'UTF-8');
+					$message .= ' * 🔴' . $meta->key . '* ' . "\n  ✅ " . $decoded_value . "\n";
 				}
 			}
 		}
@@ -780,6 +692,7 @@ class Trello_Automation_Admin
 		$message .= "\n-----------------------------------\n";
 		return $message;
 	}
+
 
 
 
@@ -805,6 +718,7 @@ class Trello_Automation_Admin
 
 		// Add the customer note to the Slack message if it exists
 		if (!empty($customer_note)) {
+			$customer_note = html_entity_decode($customer_note, ENT_QUOTES, 'UTF-8');
 			$message .= "*Customer Note:* " . $customer_note . "\n";
 		}
 
@@ -901,8 +815,6 @@ class Trello_Automation_Admin
 		}
 		return true;
 	}
-
-
 
 
 
