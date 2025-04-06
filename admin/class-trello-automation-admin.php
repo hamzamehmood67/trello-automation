@@ -571,7 +571,9 @@ class Trello_Automation_Admin
 			'Do you have any puppies (dogs under one year old) in your party?' => 'Puppies:',
 			'Do we need to administer any medications during this stay, including pills, supplements, ointments, sprays, or drops?' => 'Medications:',
 			'Transportation: Would you like to use our pet taxi service for pick-up and/or drop-off?' => 'Transportation:',
+			'Would you like us to pick up your dog(s)?' => 'Pick-Up:',
 			'Arrival Time: What time do you think you will drop off your dog(s) (Normal Business Hours are 7am-9pm)?' => 'Arrival Time:',
+			'Would you like us to drop-off your dog(s)?' => 'Drop-Off:',
 			'Departure Time: What time do you think you will pick your dog(s) up (Normal Business Hours are 7am-9pm)?' => 'Departure Time:'
 		];
 	}
