@@ -986,7 +986,7 @@ class Trello_Automation_Admin
 
 	private function create_trello_card1($data)
 	{
-		error_log("Starting Trello card creation...");
+
 
 		$api_key = get_option('trello_api_key');
 		$token   = get_option('trello_token');
@@ -1019,7 +1019,6 @@ class Trello_Automation_Admin
 		}
 
 		$card_id = $body['id'];
-		error_log("Card Created with ID: $card_id");
 
 		$custom_fields = [
 			'pet_type' => ['id' => '68150516b530c51c38833565', 'type' => 'list', 'options' => [
@@ -1031,10 +1030,19 @@ class Trello_Automation_Admin
 				'Small mammal' => '68150516b530c51c3883356b',
 				'Other' => '68150516b530c51c3883356c'
 			]],
-			'gender' => ['id' => '681505595832afda863e32f2', 'type' => 'list', 'options' => [
-				'Male' => '681505595832afda863e32f3',
-				'Female' => '681505595832afda863e32f4'
-			]],
+			'male-female' => [
+				'id' => '681505595832afda863e32f2',
+				'type' => 'list',
+				'options' => [
+					'Male' => '681505595832afda863e32f3',
+					'Female' => '681505595832afda863e32f4'
+				]
+			],
+			'birth_date' => [
+				'id' => '681506c3ff093609d2e40ee4',
+				'type' => 'date'
+			],
+
 			'boarding_daycare_services' => ['id' => '681505d9667d24b95e80a70c', 'type' => 'list', 'options' => [
 				'Yes.' => '681505d9667d24b95e80a70d',
 				'No' => '681505d9667d24b95e80a70e'
@@ -1086,6 +1094,10 @@ class Trello_Automation_Admin
 				$field_value = ['idValue' => $field_data['options'][$value]];
 			} elseif ($field_data['type'] === 'text') {
 				$field_value = ['value' => ['text' => $value]];
+			} elseif ($field_data['type'] === 'date') {
+				// Convert to ISO 8601 format
+				$date = date('c', strtotime($value)); // e.g., "2025-06-30T00:00:00+00:00"
+				$field_value = ['value' => ['date' => $date]];
 			} else {
 				error_log("Unsupported field or value not mapped for $key");
 				continue;
@@ -1101,8 +1113,6 @@ class Trello_Automation_Admin
 
 			if (is_wp_error($resp)) {
 				error_log("Failed to set custom field [$key]: " . $resp->get_error_message());
-			} else {
-				error_log("Successfully set custom field [$key]");
 			}
 		}
 
@@ -1111,7 +1121,7 @@ class Trello_Automation_Admin
 
 	public function handle_post_submission($post_ID, $post, $update)
 	{
-		error_log("Triggered handle_post_submission for Post ID: $post_ID");
+
 
 		if (get_post_type($post_ID) !== 'post') {
 			error_log("Not a post. Exiting.");
@@ -1124,7 +1134,7 @@ class Trello_Automation_Admin
 		}
 
 		add_action('shutdown', function () use ($post_ID) {
-			error_log("Running delayed Trello logic for Post ID: $post_ID");
+
 
 			$title = get_the_title($post_ID);
 			$content = get_post_field('post_content', $post_ID);
@@ -1132,7 +1142,7 @@ class Trello_Automation_Admin
 
 			$fields = [
 				'pet_type',
-				'gender',
+				'male-female',
 				'boarding_daycare_services',
 				'group_settings',
 				'neutered_and_spayed',
@@ -1144,7 +1154,8 @@ class Trello_Automation_Admin
 				'pet_personality',
 				'eating_arrangements',
 				'medicine_details',
-				'additional_information'
+				'additional_information',
+				'birth_date'
 			];
 
 			$meta_fields = [];
@@ -1152,7 +1163,7 @@ class Trello_Automation_Admin
 				$meta_fields[$key] = get_post_meta($post_ID, $key, true);
 			}
 
-			$this->log_post_meta_and_custom_fields($post_ID, $meta_fields);
+			// $this->log_post_meta_and_custom_fields($post_ID, $meta_fields);
 
 			$card_data = [
 				'title' => $title,
