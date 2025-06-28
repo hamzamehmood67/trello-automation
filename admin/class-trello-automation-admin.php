@@ -981,4 +981,212 @@ class Trello_Automation_Admin
 
 		return hash_equals($my_signature, $signature);
 	}
+
+	// Pet profile AUtomation
+
+	private function create_trello_card1($data)
+	{
+		error_log("Starting Trello card creation...");
+
+		$api_key = get_option('trello_api_key');
+		$token   = get_option('trello_token');
+		$list_id = '68028b842bac3fc3bb3149b9';
+
+		$url = "https://api.trello.com/1/cards?key={$api_key}&token={$token}";
+
+		$args = [
+			'name'   => $data['title'],
+			'desc'   => $data['desc'],
+			'idList' => $list_id,
+			'pos'    => 'top'
+		];
+
+		$response = wp_remote_post($url, [
+			'method' => 'POST',
+			'body'   => $args,
+		]);
+
+		if (is_wp_error($response)) {
+			error_log('Trello card creation failed: ' . $response->get_error_message());
+			return false;
+		}
+
+		$body = json_decode(wp_remote_retrieve_body($response), true);
+
+		if (!isset($body['id'])) {
+			error_log('Trello card creation failed: No ID in response');
+			return false;
+		}
+
+		$card_id = $body['id'];
+		error_log("Card Created with ID: $card_id");
+
+		$custom_fields = [
+			'pet_type' => ['id' => '68150516b530c51c38833565', 'type' => 'list', 'options' => [
+				'Dog' => '68150516b530c51c38833566',
+				'Cat' => '68150516b530c51c38833567',
+				'Bird' => '68150516b530c51c38833568',
+				'Herptile' => '68150516b530c51c38833569',
+				'Fish' => '68150516b530c51c3883356a',
+				'Small mammal' => '68150516b530c51c3883356b',
+				'Other' => '68150516b530c51c3883356c'
+			]],
+			'gender' => ['id' => '681505595832afda863e32f2', 'type' => 'list', 'options' => [
+				'Male' => '681505595832afda863e32f3',
+				'Female' => '681505595832afda863e32f4'
+			]],
+			'boarding_daycare_services' => ['id' => '681505d9667d24b95e80a70c', 'type' => 'list', 'options' => [
+				'Yes.' => '681505d9667d24b95e80a70d',
+				'No' => '681505d9667d24b95e80a70e'
+			]],
+			'group_settings' => ['id' => '6815062fa7e5db813d83cecd', 'type' => 'list', 'options' => [
+				'Yes.' => '6815062fa7e5db813d83cece',
+				'No, they would need a private room & yard time' => '6815062fa7e5db813d83cecf',
+				"I'm not sure " => '6815062fa7e5db813d83ced0'
+			]],
+			'neutered_and_spayed' => ['id' => '6815069259e69457a085c199', 'type' => 'list', 'options' => [
+				'Yes.' => '6815069259e69457a085c19a',
+				'No.' => '6815069259e69457a085c19b',
+				'Not yet, but they will be prior to attending daycare/boarding.' => '6815069259e69457a085c19c'
+			]],
+			'pet_weight' => ['id' => '6815074daaace50c01d5c71b', 'type' => 'list', 'options' => [
+				'Extra Small - Under 5 LBS' => '6815074daaace50c01d5c71c',
+				'Small - Between 6 - 20 LBS' => '6815074daaace50c01d5c71d',
+				'Medium - Between 21 - 50 LBS' => '6815074daaace50c01d5c71e',
+				'Large - Between 51 LBS - 80 LBS' => '6815074daaace50c01d5c71f',
+				'Extra Large - Over 81 LBS' => '6815074daaace50c01d5c720'
+			]],
+			'sleeping_arrangements' => ['id' => '681507ddd8881f3afbb6cfa0', 'type' => 'list', 'options' => [
+				'Crate' => '681507ddd8881f3afbb6cfa1',
+				'Roams freely' => '681507ddd8881f3afbb6cfa2',
+				'A gated/closed off area or room' => '681507ddd8881f3afbb6cfa3'
+			]],
+			'medicine' => ['id' => '68150861dcecaecde58591d2', 'type' => 'list', 'options' => [
+				'Yes' => '68150861dcecaecde58591d3',
+				'No' => '68150861dcecaecde58591d4'
+			]],
+			'species_breed' => ['id' => '681506e330058fb760feda87', 'type' => 'text'],
+			'pet_color_markings' => ['id' => '681506fd44b0b1fa00ea428d', 'type' => 'text'],
+			'pet_personality' => ['id' => '6815080323c99bd1acecdf99', 'type' => 'text'],
+			'eating_arrangements' => ['id' => '68150797d4ccbd94ae0d8492', 'type' => 'text'],
+			'medicine_details' => ['id' => '681508a94a92eebb125f889a', 'type' => 'text'],
+			'additional_information' => ['id' => '681508d525afc91c26278012', 'type' => 'text'],
+		];
+
+		foreach ($data['fields'] as $key => $value) {
+			if (empty($value) || !isset($custom_fields[$key])) {
+				error_log("Skipping empty or unmapped field: $key");
+				continue;
+			}
+
+			$field_data = $custom_fields[$key];
+			$field_id   = $field_data['id'];
+
+			if ($field_data['type'] === 'list' && isset($field_data['options'][$value])) {
+				$field_value = ['idValue' => $field_data['options'][$value]];
+			} elseif ($field_data['type'] === 'text') {
+				$field_value = ['value' => ['text' => $value]];
+			} else {
+				error_log("Unsupported field or value not mapped for $key");
+				continue;
+			}
+
+			$custom_url = "https://api.trello.com/1/card/{$card_id}/customField/{$field_id}/item?key={$api_key}&token={$token}";
+
+			$resp = wp_remote_request($custom_url, [
+				'method' => 'PUT',
+				'headers' => ['Content-Type' => 'application/json'],
+				'body'    => json_encode($field_value)
+			]);
+
+			if (is_wp_error($resp)) {
+				error_log("Failed to set custom field [$key]: " . $resp->get_error_message());
+			} else {
+				error_log("Successfully set custom field [$key]");
+			}
+		}
+
+		return true;
+	}
+
+	public function handle_post_submission($post_ID, $post, $update)
+	{
+		error_log("Triggered handle_post_submission for Post ID: $post_ID");
+
+		if (get_post_type($post_ID) !== 'post') {
+			error_log("Not a post. Exiting.");
+			return;
+		}
+
+		if (get_post_meta($post_ID, '_trello_card_created', true)) {
+			error_log("Trello card already created. Skipping.");
+			return;
+		}
+
+		add_action('shutdown', function () use ($post_ID) {
+			error_log("Running delayed Trello logic for Post ID: $post_ID");
+
+			$title = get_the_title($post_ID);
+			$content = get_post_field('post_content', $post_ID);
+			$author = get_the_author_meta('display_name', get_post_field('post_author', $post_ID));
+
+			$fields = [
+				'pet_type',
+				'gender',
+				'boarding_daycare_services',
+				'group_settings',
+				'neutered_and_spayed',
+				'pet_weight',
+				'sleeping_arrangements',
+				'medicine',
+				'species_breed',
+				'pet_color_markings',
+				'pet_personality',
+				'eating_arrangements',
+				'medicine_details',
+				'additional_information'
+			];
+
+			$meta_fields = [];
+			foreach ($fields as $key) {
+				$meta_fields[$key] = get_post_meta($post_ID, $key, true);
+			}
+
+			$this->log_post_meta_and_custom_fields($post_ID, $meta_fields);
+
+			$card_data = [
+				'title' => $title,
+				'desc' => "Author: $author\n\nContent:\n$content",
+				'fields' => $meta_fields
+			];
+
+			$success = $this->create_trello_card1($card_data);
+
+			if ($success) {
+				update_post_meta($post_ID, '_trello_card_created', true);
+				error_log("Trello card created and flagged on post.");
+			} else {
+				error_log("Failed to create Trello card (delayed).");
+			}
+		}, 100);
+	}
+
+
+	private function log_post_meta_and_custom_fields($post_id, $fields = [])
+	{
+		$output = "==== Debug for Post ID: $post_id ====\n\n";
+
+		$output .= "🎯 Custom Field Values Passed:\n";
+		foreach ($fields as $key => $value) {
+			$output .= "- $key => " . print_r($value, true) . "\n";
+		}
+
+		$output .= "\n🧠 Raw Post Meta:\n";
+		$all_meta = get_post_meta($post_id);
+		foreach ($all_meta as $key => $value) {
+			$output .= "$key => " . print_r($value, true) . "\n";
+		}
+
+		$this->write_message_to_file($output, $post_id);
+	}
 }
