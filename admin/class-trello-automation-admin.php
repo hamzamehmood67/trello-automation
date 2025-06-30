@@ -205,6 +205,11 @@ class Trello_Automation_Admin
 		// Try to send
 		$result = $this->send_to_slack($slack_message, $order->get_order_number());
 
+		if (!$result) {
+			$slack_message = $this->prepare_slack_message_for_order($order);
+			$slack_message .= "This message fialed due to character limit exceeding. Please check the order details in WooCommerce.";
+			$result = $this->send_to_slack($slack_message, $order->get_order_number());
+		}
 		// If failed and we have retries left (max 3 attempts)
 		if (!$result && $attempt < 3) {
 			error_log("Retry attempt {$attempt} for order #{$order_id}");
