@@ -335,6 +335,28 @@ class Trello_Automation_Admin
 	}
 
 
+	public function handle_order_cancelled($order_id, $old_status, $new_status, $order)
+	{
+		if ($new_status !== 'cancelled') {
+			return;
+		}
+
+		$order = wc_get_order($order_id);
+		if (!$order) return;
+
+		$customer_name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
+		$order_total = $order->get_total();
+
+		$message = "*Order Cancelled* ❌\n" .
+			"*Order ID:* #$order_id\n" .
+			"*Customer:* $customer_name\n" .
+			"*Previous Status:* `$old_status`\n" .
+			"*Current Status:* `cancelled`";
+
+		$this->send_simple_slack_message($message, $order_id);
+	}
+
+
 
 	/**
 	 * Check if a product is mapped to a Trello list.
@@ -858,6 +880,58 @@ class Trello_Automation_Admin
 		return true;
 	}
 
+	private function send_simple_slack_message($message, $order_id)
+	{
+		$slack_channel_id = get_option('slack_channel_id', '');
+		$slack_api_token = get_option('slack_api_token', '');
+
+		if (empty($slack_channel_id) || empty($slack_api_token)) {
+			error_log("Slack config missing for order #{$order_id}");
+			return false;
+		}
+
+		$response = wp_remote_post('https://slack.com/api/chat.postMessage', [
+			'body' => json_encode([
+				'channel' => $slack_channel_id,
+				'text' => $message,
+				'blocks' => [
+					[
+						'type' => 'section',
+						'text' => ['type' => 'mrkdwn', 'text' => $message]
+					]
+				]
+			]),
+			'headers' => [
+				'Content-Type' => 'application/json',
+				'Authorization' => 'Bearer ' . $slack_api_token
+			],
+			'timeout' => 5
+		]);
+
+		if (is_wp_error($response)) {
+			$error_message = "Slack API error for order #{$order_id}: " . $response->get_error_message();
+			error_log($error_message);
+			$this->write_message_to_file($error_message, $order_id);
+			return false;
+		}
+
+		$body = json_decode(wp_remote_retrieve_body($response), true);
+		if (empty($body['ok'])) {
+			$error_details = [
+				'order_id' => $order_id,
+				'timestamp' => current_time('mysql'),
+				'response_code' => wp_remote_retrieve_response_code($response),
+				'slack_error' => $body['error'] ?? 'Unknown error',
+				'full_response' => $body
+			];
+			$error_message = "Slack API failed for order #{$order_id}:\n" . print_r($error_details, true);
+			error_log($error_message);
+			$this->write_message_to_file($error_message, $order_id);
+			return false;
+		}
+
+		return true;
+	}
 
 
 	public function register_trello_api_routes()
