@@ -16,7 +16,7 @@
  * Plugin Name:       Trello Automation
  * Plugin URI:        https://#
  * Description:       Automatically create Trello cards, send slack notification streamlining workflow.
- * Version:           2.0.1
+ * Version:           2.0.2
  * Author:            That's So Fetch
  * Author URI:        https://thatssofetch.co/
  * License:           GPL-2.0+
