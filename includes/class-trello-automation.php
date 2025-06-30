@@ -85,6 +85,9 @@ class Trello_Automation
 		//$this->loader->add_action1('woocommerce_checkout_order_processed', $plugin_admin, 'tempTrelloNotification', 10, 1);
 		$this->loader->add_action1('rest_api_init', $plugin_admin, 'register_trello_api_routes');
 		$this->loader->add_action1('process_slack_order_action', $plugin_admin, 'process_slack_action', 10, 3);
+		$this->loader->add_action1('wp_insert_post', $plugin_admin, 'handle_post_submission', 20, 3);
+
+
 
 		// Create Trello card when order status changes to "approved"
 		$this->loader->add_action1('woocommerce_order_status_changed', $plugin_admin, 'create_trello_card_on_approval', 10, 3);
